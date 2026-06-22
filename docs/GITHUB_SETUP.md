@@ -9,26 +9,24 @@
 - 开发日志已拆分到 `docs/DEV_LOG.md`。
 - 本地 Git 仓库已初始化。
 - 默认分支为 `main`。
-- 当前尚未配置 GitHub 远程仓库。
+- GitHub 远程仓库已配置为 `https://github.com/nihaoxia/my-first-project.git`。
+- 本地 `main` 分支已完成首次推送。
 
-## 需要用户提供的事项
+## 当前 GitHub 仓库
 
-需要在 GitHub 上创建一个空仓库，并提供仓库地址。
+仓库地址：
 
-地址格式可以是 HTTPS 或 SSH：
+[https://github.com/nihaoxia/my-first-project](https://github.com/nihaoxia/my-first-project)
 
-```text
-https://github.com/<user-or-org>/<repo>.git
-git@github.com:<user-or-org>/<repo>.git
-```
+## 日常推送流程
 
-## 配置 GitHub 远程仓库
-
-等 GitHub 上创建空仓库后，配置远程地址并推送：
+后续每次完成一组改动后：
 
 ```powershell
-git remote add origin <GitHub 仓库地址>
-git push -u origin main
+git status
+git add .
+git commit -m "<提交说明>"
+git push
 ```
 
 ## 开发提交约定

@@ -35,13 +35,17 @@
 - 创建 `docs/GITHUB_SETUP.md`，记录后续 GitHub 仓库准备和提交流程。
 - 用户删除异常空 `.git` 目录后，重新初始化本地 Git 仓库。
 - 将默认分支设置为 `main`。
+- 用户手动配置 GitHub 远程仓库 `https://github.com/nihaoxia/my-first-project.git`。
+- 用户手动完成首次推送，本地 `main` 分支已推送到 GitHub。
+- 创建第一阶段实现计划 `docs/superpowers/plans/2026-06-22-project-foundation.md`。
+- 第一阶段计划范围为项目基础骨架：Next.js、TypeScript、Tailwind、基础页面、环境变量示例和验证流程。
 
 ### 后续待办
 
+- 执行第一阶段项目基础骨架计划。
 - 确认第一版主要面向国内用户还是海外/国际用户。
 - 在 Trigger.dev 和 Inngest 之间做最终选择。
 - 确认 AI 模型供应商和成本估算方式。
 - 设计数据库结构初稿。
 - 梳理页面信息架构和主要界面清单。
 - 制定 MVP 开发顺序。
-- 等用户提供 GitHub 仓库地址后配置远程仓库。
