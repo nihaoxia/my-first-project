@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+.pnpm-store/
 .pnp/
 .pnp.js
 
@@ -22,6 +23,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+.next-dev*.log
+.codex-dev-server*.log
 
 # Local tooling and temporary files
 .agents/

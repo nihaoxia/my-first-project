@@ -1,0 +1,324 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  BANNED
+}
+
+enum BookFormat {
+  TXT
+  EPUB
+}
+
+enum BookLanguage {
+  CHINESE
+  ENGLISH
+  JAPANESE
+  KOREAN
+  RUSSIAN
+  GERMAN
+  SPANISH
+  FRENCH
+  UNKNOWN
+}
+
+enum TranslationStatus {
+  DRAFT
+  QUEUED
+  PROCESSING
+  COMPLETED
+  NEEDS_REVIEW
+  FAILED
+  CANCELED
+}
+
+enum ChapterStatus {
+  ACTIVE
+  SKIPPED
+  TOO_LONG
+  TOO_SHORT
+  SUSPECTED_TOC
+  GARBLED
+}
+
+enum TaskStatus {
+  PENDING
+  EXTRACTING_TERMS
+  QUEUED
+  TRANSLATING
+  QUALITY_CHECKING
+  COMPLETED
+  NEEDS_REVIEW
+  FAILED
+  CANCELED
+}
+
+enum LedgerType {
+  GRANT
+  HOLD
+  CHARGE
+  RELEASE
+  MANUAL_ADJUSTMENT
+  REFUND
+}
+
+enum TermType {
+  PERSON
+  PLACE
+  ORGANIZATION
+  RACE
+  SKILL
+  ITEM
+  TITLE
+  ADDRESS
+  SETTING
+  OTHER
+}
+
+model UserProfile {
+  id              String           @id @default(uuid()) @db.Uuid
+  phone           String           @unique
+  displayName     String?
+  role            UserRole         @default(USER)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  lastLoginAt     DateTime?
+  balance         AccountBalance?
+  originalBooks   OriginalBook[]
+  translatedBooks TranslatedBook[]
+  ledgers         BalanceLedger[]
+  holds           BalanceHold[]
+  vocabularyItems VocabularyItem[]
+  sentenceItems   SentenceItem[]
+  rateLimits      AiRateLimit[]
+
+  @@index([role])
+}
+
+model AccountBalance {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @unique @db.Uuid
+  available    Decimal     @default(0) @db.Decimal(10, 2)
+  frozen       Decimal     @default(0) @db.Decimal(10, 2)
+  freeChapters Int         @default(20)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  user         UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BalanceLedger {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
+  type        LedgerType
+  amount      Decimal          @db.Decimal(10, 2)
+  description String?
+  taskId      String?          @db.Uuid
+  holdId      String?          @db.Uuid
+  createdAt   DateTime         @default(now())
+  user        UserProfile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        TranslationTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  hold        BalanceHold?     @relation(fields: [holdId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type])
+}
+
+model BalanceHold {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @db.Uuid
+  taskId     String?          @unique @db.Uuid
+  amount     Decimal          @db.Decimal(10, 2)
+  releasedAt DateTime?
+  chargedAt  DateTime?
+  createdAt  DateTime         @default(now())
+  user       UserProfile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       TranslationTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  ledgers    BalanceLedger[]
+
+  @@index([userId, createdAt])
+}
+
+model OriginalBook {
+  id              String           @id @default(uuid()) @db.Uuid
+  userId          String           @db.Uuid
+  title           String
+  author          String?
+  sourceLanguage  BookLanguage     @default(UNKNOWN)
+  format          BookFormat
+  fileSizeBytes   Int
+  storagePath     String
+  chapterCount    Int              @default(0)
+  uploadedAt      DateTime         @default(now())
+  lastOpenedAt    DateTime?
+  readingProgress String?
+  user            UserProfile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapters        Chapter[]
+  translations    TranslatedBook[]
+  terms           Term[]
+  vocabularyItems VocabularyItem[]
+  sentenceItems   SentenceItem[]
+
+  @@index([userId, uploadedAt])
+}
+
+model Chapter {
+  id                 String              @id @default(uuid()) @db.Uuid
+  originalBookId     String              @db.Uuid
+  index              Int
+  title              String
+  content            String
+  wordCount          Int
+  status             ChapterStatus       @default(ACTIVE)
+  isSkipped          Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  originalBook       OriginalBook        @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  translatedChapters TranslatedChapter[]
+  tasks              TranslationTask[]
+  vocabularyItems    VocabularyItem[]
+  sentenceItems      SentenceItem[]
+
+  @@unique([originalBookId, index])
+  @@index([originalBookId, status])
+}
+
+model TranslatedBook {
+  id                 String              @id @default(uuid()) @db.Uuid
+  userId             String              @db.Uuid
+  originalBookId     String              @db.Uuid
+  title              String
+  targetLanguage     BookLanguage
+  status             TranslationStatus   @default(DRAFT)
+  progressPercent    Int                 @default(0)
+  completedChapters  Int                 @default(0)
+  failedChapters     Int                 @default(0)
+  webSearchTerms     Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  lastReadAt         DateTime?
+  readingProgress    String?
+  user               UserProfile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalBook       OriginalBook        @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  translatedChapters TranslatedChapter[]
+  tasks              TranslationTask[]
+  terms              Term[]
+
+  @@index([userId, createdAt])
+  @@index([originalBookId, targetLanguage])
+}
+
+model TranslatedChapter {
+  id               String         @id @default(uuid()) @db.Uuid
+  translatedBookId String         @db.Uuid
+  chapterId        String         @db.Uuid
+  title            String
+  content          String
+  qualityPassed    Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  translatedBook   TranslatedBook @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+  chapter          Chapter        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@unique([translatedBookId, chapterId])
+  @@index([translatedBookId])
+}
+
+model TranslationTask {
+  id               String          @id @default(uuid()) @db.Uuid
+  translatedBookId String          @db.Uuid
+  chapterId        String          @db.Uuid
+  status           TaskStatus      @default(PENDING)
+  estimatedCost    Decimal         @db.Decimal(10, 2)
+  retryCount       Int             @default(0)
+  errorMessage     String?
+  startedAt        DateTime?
+  completedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  translatedBook   TranslatedBook  @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+  chapter          Chapter         @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  balanceHold      BalanceHold?
+  ledgers          BalanceLedger[]
+
+  @@index([translatedBookId, status])
+  @@index([chapterId])
+  @@index([createdAt])
+}
+
+model Term {
+  id               String          @id @default(uuid()) @db.Uuid
+  originalBookId   String          @db.Uuid
+  translatedBookId String?         @db.Uuid
+  type             TermType        @default(OTHER)
+  sourceText       String
+  translatedText   String
+  isUserLocked     Boolean         @default(false)
+  confidence       Int             @default(0)
+  sourceNote       String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  originalBook     OriginalBook    @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  translatedBook   TranslatedBook? @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+
+  @@unique([originalBookId, translatedBookId, sourceText])
+  @@index([originalBookId, type])
+}
+
+model VocabularyItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  originalBookId String       @db.Uuid
+  chapterId      String?      @db.Uuid
+  term           String
+  explanation    String
+  contextualMean String?
+  sourceSentence String?
+  note           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalBook   OriginalBook @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  chapter        Chapter?     @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([originalBookId])
+}
+
+model SentenceItem {
+  id             String       @id @default(uuid()) @db.Uuid
+  userId         String       @db.Uuid
+  originalBookId String       @db.Uuid
+  chapterId      String?      @db.Uuid
+  originalText   String
+  translatedText String?
+  explanation    String?
+  note           String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           UserProfile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalBook   OriginalBook @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  chapter        Chapter?     @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([originalBookId])
+}
+
+model AiRateLimit {
+  id        String      @id @default(uuid()) @db.Uuid
+  userId    String      @db.Uuid
+  scope     String
+  count     Int         @default(0)
+  windowKey String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      UserProfile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, scope, windowKey])
+  @@index([userId, updatedAt])
+}
