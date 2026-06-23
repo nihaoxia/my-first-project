@@ -1,4 +1,6 @@
 import { routes } from "@/lib/routes";
+import { buildMockAccountSummary } from "@/lib/account/mock-account-summary";
+import { buildMockBalanceRecords } from "@/lib/account/mock-balance-ledger";
 
 export type TranslationStatus =
   | "ready"
@@ -8,10 +10,13 @@ export type TranslationStatus =
   | "queued"
   | "skipped";
 
+const mockAccountSummary = buildMockAccountSummary();
+
 export const accountSummary = {
-  balance: "12.30",
-  frozen: "0.40",
-  freeChaptersLeft: 12,
+  balance: mockAccountSummary.balanceYuan,
+  frozen: mockAccountSummary.frozenYuan,
+  available: mockAccountSummary.availableYuan,
+  freeChaptersLeft: mockAccountSummary.freeChaptersLeft,
   estimatedAfterSelection: "11.60",
 };
 
@@ -208,8 +213,4 @@ export const failedTasks = [
   },
 ];
 
-export const balanceRecords = [
-  { user: "138****1024", type: "冻结", amount: "-0.40", time: "17:31" },
-  { user: "138****1024", type: "失败返还", amount: "+0.30", time: "17:42" },
-  { user: "186****7731", type: "手动加余额", amount: "+5.00", time: "15:12" },
-];
+export const balanceRecords = buildMockBalanceRecords();

@@ -1,12 +1,20 @@
-import { ArrowRight, BookOpen, Clock, Upload } from "lucide-react";
+import { ArrowRight, BookOpen, Clock, ShieldAlert, Upload } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { getLibraryAccessNotice } from "@/lib/auth/access-notice";
 import { accountSummary, originalBooks, translatedBooks, translationTasks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
-export default function LibraryPage() {
+export default async function LibraryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
+  const params = await searchParams;
+  const accessNotice = getLibraryAccessNotice(params?.error);
+
   return (
     <AppShell>
       <div className="flex flex-wrap items-start justify-between gap-6">
@@ -22,8 +30,18 @@ export default function LibraryPage() {
         </Button>
       </div>
 
+      {accessNotice ? (
+        <div className="mt-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+          <ShieldAlert aria-hidden="true" className="mt-0.5 shrink-0" size={20} />
+          <div>
+            <p className="font-medium">{accessNotice.title}</p>
+            <p className="mt-1 text-sm leading-6">{accessNotice.message}</p>
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="账户余额" value={`¥ ${accountSummary.balance}`} detail="公开体验版模拟余额" />
+        <MetricCard label="账户余额" value={`¥ ${accountSummary.balance}`} detail={`可用 ¥ ${accountSummary.available}`} />
         <MetricCard label="冻结金额" value={`¥ ${accountSummary.frozen}`} detail="等待任务完成" />
         <MetricCard label="原版书籍" value={`${originalBooks.length}`} detail="TXT / EPUB" />
         <MetricCard label="译本数量" value={`${translatedBooks.length}`} detail="多目标语言" />

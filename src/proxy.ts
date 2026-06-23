@@ -1,40 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getRouteAccessDecision } from "@/lib/auth/access-policy";
 import { mockSessionCookieName, parseMockSession } from "@/lib/auth/mock-session";
 
-const protectedPrefixes = [
-  "/library",
-  "/upload",
-  "/books",
-  "/translations",
-  "/reader",
-  "/study",
-];
-
-function isProtectedPath(pathname: string) {
-  return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
-
 export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
   const rawSession = request.cookies.get(mockSessionCookieName)?.value;
   const session = parseMockSession(rawSession);
+  const decision = getRouteAccessDecision(`${request.nextUrl.pathname}${request.nextUrl.search}`, session);
 
-  if (pathname === "/login" && session) {
-    return NextResponse.redirect(new URL("/library", request.url));
-  }
-
-  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
-    if (!session) {
-      return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
-    }
-
-    if (session.role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/library?error=admin", request.url));
-    }
-  }
-
-  if (isProtectedPath(pathname) && !session) {
-    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(pathname)}`, request.url));
+  if (decision.type === "redirect") {
+    return NextResponse.redirect(new URL(decision.destination, request.url));
   }
 
   return NextResponse.next();

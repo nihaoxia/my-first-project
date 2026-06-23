@@ -115,12 +115,160 @@
   - Node 原生测试：12 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
   - `pnpm lint`
   - `pnpm build`
-- 阶段 2 仍保持进行中：真实 Supabase 项目、真实数据库连接和短信验证码服务尚未接入。
+- 阶段 2 继续收口本地权限边界：
+  - 新增 `src/lib/auth/access-policy.ts`，将登录页跳转、私人页面保护、后台管理员保护和后台导航可见性抽成纯策略函数。
+  - `src/proxy.ts` 改为复用统一权限策略，只负责读取开发期 session cookie 并执行允许或跳转结果。
+  - `src/components/app-shell.tsx` 改为按权限显示后台导航；未登录用户和普通用户不再看到后台入口，管理员仍可访问。
+  - 新增 `tests/auth-access-policy.test.ts`，覆盖访客、普通用户、管理员在登录页、私人页面和后台页面的访问边界。
+  - 新增 `pnpm test` 脚本，统一运行 Node 原生单元测试，不新增测试依赖。
+- 本轮权限边界增量验证通过：
+  - `pnpm test`：19 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+  - `pnpm lint`
+  - `pnpm build`
+- 阶段 2 继续为下一阶段上传解析做准备：
+  - 新增 `src/lib/upload/txt-chapter-parser.ts`，建立 TXT 章节拆分预览的纯逻辑模块。
+  - 支持识别常见中文标题（如 `第一章`、`第十二回`）和英文标题（如 `Chapter 1`）。
+  - 无明显章节标题时返回单章预览并标记 `single-chapter`，方便后续页面提示用户检查。
+  - 支持保留首个章节标题前的开篇内容，避免献词、序言等内容在自动拆章时丢失。
+  - 对疑似目录页标记 `likely-toc` 并给出建议跳过状态；对过短章节标记 `short-chapter`。
+  - 章节预览页改为复用 TXT 拆章策略中的规则标签；上传页新增当前 TXT 拆章准备状态展示。
+  - 新增 `tests/txt-chapter-parser.test.ts`，覆盖中文/英文章节识别、连续标题、无标题全文、目录页和短章节边界。
+- 本轮上传解析准备增量验证通过：
+  - `pnpm test`：26 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+  - `pnpm lint`
+  - `pnpm build`
+- 阶段 2 继续补充上传解析前置能力：
+  - 新增 `src/lib/upload/book-metadata.ts`，从上传文件名推断初始书籍元数据。
+  - 支持从 `书名 - 作者.epub`、`Title by Author.txt` 这类文件名中预填书名、作者和格式。
+  - 文件名规范化会清理下划线、多余空格和标题中的文件名点号，同时保留作者缩写中的点号，例如 `M. Vale`。
+  - 上传页新增元数据预填准备示例，后续真实上传接入后可复用该模块作为默认书名/作者来源。
+  - 新增 `tests/upload-book-metadata.test.ts`，覆盖书名规范化、作者分隔、不支持格式和完整元数据推断。
+- 本轮元数据预填准备增量验证通过：
+  - `pnpm test`：31 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+  - `pnpm lint`
+  - `pnpm build`
+- 阶段 2 继续补充开发期账号显示边界：
+  - 新增 `src/lib/auth/mock-user-profile.ts`，将开发期 session 转换为页面可展示的用户资料，包含脱敏手机号、角色标签、管理员标记、余额、冻结金额和免费章节数。
+  - `src/components/app-shell.tsx` 顶部栏接入开发期用户资料；登录后桌面端显示手机号、角色和账户摘要，小屏保留角色标签与退出入口，避免导航区域拥挤。
+  - 新增 `tests/mock-user-profile.test.ts`，覆盖手机号脱敏、无效手机号保留、普通用户资料、管理员资料和未登录状态。
+- 本轮开发期用户资料增量验证通过：
+  - `pnpm test`：36 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+  - `pnpm lint`
+  - `pnpm build`
+- 阶段 2 继续完善本地权限拒绝反馈：
+  - 新增 `src/lib/auth/access-notice.ts`，集中维护书架页可展示的权限错误提示文案。
+  - 普通用户访问 `/admin` 被重定向到 `/library?error=admin` 后，书架页现在会显示“需要管理员权限”的可见提示，避免用户只看到页面跳回而不知道原因。
+  - 新增 `tests/auth-access-notice.test.ts`，覆盖管理员权限错误、未知错误和无错误状态。
+- 本轮权限拒绝提示增量验证通过：
+  - `pnpm test`：39 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+- 阶段 2 继续收紧开发期账户数据边界：
+  - 新增 `src/lib/account/mock-account-summary.ts`，集中生成开发期账户摘要，包含余额、冻结金额、可用余额和免费章节数。
+  - `src/lib/auth/mock-user-profile.ts` 改为复用账户摘要模块，避免顶部栏和书架页各自维护余额假数据。
+  - `src/lib/mock-data.ts` 的书架账户卡片改为读取同一账户摘要，并在书架页展示可用余额，便于后续替换为真实 `AccountBalance` 查询。
+  - `tsconfig.json` 启用 `allowImportingTsExtensions`，让纯逻辑源码可以被 Node 原生测试稳定地通过相对 `.ts` 导入覆盖。
+  - 新增 `tests/mock-account-summary.test.ts`，覆盖分单位格式化、默认开发期账户摘要和冻结金额大于余额时可用余额不为负数的边界。
+- 本轮账户摘要边界增量验证通过：
+  - `pnpm test`：42 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+- 阶段 2 继续补充余额流水展示边界：
+  - 新增 `src/lib/account/mock-balance-ledger.ts`，集中生成开发期余额流水展示记录，覆盖冻结、失败返还和手动加余额三类记录。
+  - `src/lib/mock-data.ts` 的后台余额记录改为复用余额流水模块，后续替换为真实 `BalanceLedger` 查询时只需要换这一层。
+  - 新增 `tests/mock-balance-ledger.test.ts`，覆盖带符号金额格式化、流水类型中文标签和后台余额记录构建结果。
+- 本轮余额流水边界增量验证通过：
+  - `pnpm test`：45 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+- 阶段 2 继续补充余额冻结和扣费的纯逻辑准备：
+  - 新增 `src/lib/account/mock-balance-operations.ts`，提供开发期余额冻结、冻结返还、冻结转扣费和冻结前余额校验的纯函数。
+  - 该模块暂不接真实支付、数据库或后台任务，只固定后续译本创建和任务完成/失败时需要遵守的账户状态变化规则。
+  - 新增 `tests/mock-balance-operations.test.ts`，覆盖余额足够时允许冻结、余额不足时拒绝冻结、创建冻结、失败返还、返还不超过冻结金额、完成后从冻结转为扣费。
+- 本轮余额操作边界增量验证通过：
+  - `pnpm test`：51 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+- 阶段 2 本地范围收口：
+  - 新增 `src/lib/project/stage-two-readiness.ts`，用纯逻辑清单记录阶段 2 本地完成项和外部配置阻塞项。
+  - 新增 `tests/stage-two-readiness.test.ts`，覆盖阶段 2 本地完成度和真实 Supabase/短信服务阻塞项。
+  - `docs/ROADMAP.md` 将阶段 2 标记为已完成，语义限定为本地数据底座、开发期账号系统、权限边界和基础账户数据边界已完成。
+  - `docs/superpowers/plans/2026-06-22-database-auth.md` 同步记录本地阶段 2 已收口；真实 Supabase 项目、真实数据库连接、真实短信验证码和远程 Prisma 迁移仍需用户提供外部配置后接入。
+- 本轮阶段 2 收口验证通过：
+  - `pnpm test`：53 项通过，0 项失败。运行时存在 Node 对 TypeScript 测试文件模块类型的提示，不影响测试结果。
+- 阶段 2 已完成本地可完成范围；以下事项保留为外部配置阻塞项：
+  - Supabase 项目 URL、anon key 和 service role key 尚未配置。
+  - PostgreSQL `DATABASE_URL` / `DIRECT_URL` 尚未连接到真实项目。
+  - 真实短信验证码服务尚未接入，当前仍使用开发期固定验证码 `123456`。
+  - Prisma 迁移尚未应用到真实远程数据库。
+
+## 2026-06-23
+
+### 已完成
+
+- 阶段 3 已启动，创建上传解析实施计划 `docs/superpowers/plans/2026-06-23-upload-parsing.md`，范围限定为 TXT/EPUB 上传、解析草稿、章节调整和原版书保存前的数据形状准备。
+- 阶段 3 完成上传解析草稿第一步：
+  - 新增 `src/lib/upload/upload-draft.ts`，统一复用文件格式/大小校验、文件名元数据推断和 TXT 拆章逻辑，输出上传草稿状态。
+  - TXT 文件在尚未提供文本内容时返回 `needs-text-content`；提供文本内容后返回 `parsed`、章节预览和解析警告。
+  - EPUB 文件当前明确返回 `needs-epub-parser`，不假装已经完成真实 EPUB 解包解析，后续接入解析依赖时从该边界扩展。
+  - 新增 `tests/upload-draft.test.ts`，覆盖不支持格式、TXT 等待文本、TXT 已解析和 EPUB 待解析器状态。
+  - 上传页新增“本地解析草稿”和“EPUB 处理状态”展示，让阶段 3 的解析边界先在界面上可见。
+- 本轮阶段 3 上传草稿增量验证通过：
+  - `pnpm test`：57 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 3 完成章节编辑纯逻辑：
+  - 新增 `src/lib/upload/chapter-editing.ts`，将解析出的章节预览转换成可编辑章节列表，支持重命名、跳过、恢复和编辑状态汇总。
+  - 空章节标题会返回 `empty-title`，并保留原章节列表，避免后续真实表单误清空标题。
+  - 疑似目录页等 `suggestedSkip` 章节默认转为不纳入，用户后续可通过恢复逻辑重新纳入。
+  - 章节预览页新增“编辑状态示例”，展示重命名后的标题、原名、保留章节数和跳过章节数。
+  - 新增 `tests/chapter-editing.test.ts`，覆盖可编辑列表构建、重命名、空标题回退、跳过、恢复和状态汇总。
+- 本轮章节编辑增量验证通过：
+  - `pnpm test`：62 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 3 完成原版书保存数据形状准备：
+  - 新增 `src/lib/upload/original-book-draft.ts`，从已解析上传草稿和可编辑章节列表生成后续 Prisma 保存前的稳定输入形状。
+  - 输出包含原版书元数据、纳入保存的章节列表、被跳过章节列表、纳入章节数、跳过章节数和字符统计。
+  - 未解析上传草稿会返回 `upload-not-parsed`；全部章节被跳过时返回 `no-included-chapters`，避免保存空书。
+  - 章节预览页新增“保存草稿准备”展示，显示待保存章节数、跳过章节数和统计字符。
+  - 新增 `tests/original-book-draft.test.ts`，覆盖 TXT 已解析保存形状、EPUB 待解析拒绝和全章节跳过拒绝。
+  - `docs/superpowers/plans/2026-06-23-upload-parsing.md` 同步标记任务 1、任务 2、任务 3 已完成。
+- 本轮原版书保存形状增量验证通过：
+  - `pnpm test`：65 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 3 完成上传页本地文件选择交互：
+  - 新增 `src/lib/upload/local-upload-draft.ts`，从浏览器本地文件生成上传草稿；TXT 会读取文本内容并复用拆章逻辑，EPUB 当前不读取正文，直接进入待解析器状态。
+  - 新增 `src/components/upload/local-upload-panel.tsx`，上传页支持选择本地 TXT/EPUB 文件并展示解析结果、书名/作者/格式、章节数量、前几章预览和错误提示。
+  - `src/app/upload/page.tsx` 将原静态选择区域替换为本地文件选择面板；当前仍不上传到服务器，不接对象存储。
+  - 新增 `tests/local-upload-draft.test.ts`，覆盖 TXT 读取、EPUB 不读取、非法格式不读取和 TXT 读取失败。
+  - `docs/superpowers/plans/2026-06-23-upload-parsing.md` 同步新增并标记上传页本地文件选择交互任务完成。
+- 本轮上传页本地文件选择增量验证通过：
+  - `pnpm test`：69 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 3 完成章节预览页编辑交互：
+  - 新增 `src/components/upload/chapter-editor-panel.tsx`，章节预览页支持标题失焦后重命名、跳过章节和恢复章节。
+  - 编辑面板复用已测试的 `chapter-editing.ts` 纯逻辑，空标题会显示错误提示并保留原章节状态。
+  - 保存草稿摘要会根据当前编辑状态实时更新，显示待保存章节数、跳过章节数和统计字符。
+  - `src/app/books/[bookId]/chapters/page.tsx` 将原“编辑状态示例”替换为可操作的客户端编辑面板。
+  - `docs/superpowers/plans/2026-06-23-upload-parsing.md` 同步新增并标记章节预览页编辑交互任务完成。
+- 本轮章节预览编辑交互增量验证通过：
+  - `pnpm test`：69 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 3 本地范围收口：
+  - 新增 `src/lib/project/stage-three-readiness.ts`，用纯逻辑清单记录阶段 3 本地完成项和外部依赖阻塞项。
+  - 新增 `tests/stage-three-readiness.test.ts`，覆盖阶段 3 本地完成度，以及真实对象存储、真实 EPUB 解包、远程数据库保存等外部依赖说明。
+  - `docs/ROADMAP.md` 将阶段 3 标记为“已完成（本地范围）”，明确 TXT 本地解析、章节编辑和保存草稿数据形状已完成；真实对象存储上传、真实 EPUB 解包和远程数据库保存仍是后续接入项。
+  - `docs/superpowers/plans/2026-06-23-upload-parsing.md` 将任务 6“文档和阶段收口”标记为已完成，并补充本地阶段 3 收口说明。
+- 本轮阶段 3 收口验证通过：
+  - `pnpm test`：71 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
 
 ### 后续待办
 
-- 执行阶段 2：数据库结构和账号系统。
-- 接入真实 Supabase 项目配置后，运行 Prisma 迁移并验证数据库连接。
+- 阶段 4：译本创建、费用估算和余额冻结。
+- 真实对象存储上传和 Supabase Storage 生产配置后续接入。
+- 后续如要支持真实 EPUB 解包，需要先评估并确认依赖方案；安装依赖前需单独请求用户权限。
+- 原版书和章节写入真实远程数据库，需要等真实 Supabase/Prisma 连接配置就绪后接入。
+- 用户提供真实 Supabase 项目配置后，运行 Prisma 迁移并验证数据库连接。
 - 后续接入真实 Supabase Auth 后，将开发期 mock session 替换为真实登录态。
 - 安装或配置 Playwright 浏览器二进制，用于后续截图级视觉验证。
 - 将本机 Node.js 升级到 20.9 或更高版本，避免使用系统 Node 18 时无法运行 Next.js 16 构建。

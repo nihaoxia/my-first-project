@@ -1,11 +1,24 @@
-import { AlertTriangle, FileText, ShieldCheck, UploadCloud } from "lucide-react";
+import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/ui/button";
-import { routes } from "@/lib/routes";
+import { LocalUploadPanel } from "@/components/upload/local-upload-panel";
+import { inferBookMetadataFromFileName } from "@/lib/upload/book-metadata";
 import { formatBytes, uploadFilePolicy } from "@/lib/upload/file-policy";
+import { txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
+import { buildUploadDraft } from "@/lib/upload/upload-draft";
 
 const supportedFileFormats = uploadFilePolicy.supportedFormats.map((format) => format.label).join(" / ");
 const maxUploadSize = formatBytes(uploadFilePolicy.maxSizeBytes);
+const txtChapterRules = txtChapterParsePolicy.ruleLabels.slice(1);
+const sampleMetadata = inferBookMetadataFromFileName("迷雾边境 - 林间客.epub");
+const sampleTxtDraft = buildUploadDraft({
+  name: "迷雾边境 - 林间客.txt",
+  size: 4096,
+  textContent: "第一章 雾起\n雾从边境漫过来。\n\n第二章 黑桥\n桥下没有水，只有风。",
+});
+const sampleEpubDraft = buildUploadDraft({
+  name: "迷雾边境 - 林间客.epub",
+  size: 2048,
+});
 
 const steps = [
   "识别 TXT/EPUB 文件格式",
@@ -24,24 +37,8 @@ export default function UploadPage() {
             第一版支持 {supportedFileFormats}，开发期单文件上限 {maxUploadSize}。上传后不会公开分享，只进入你的私人书架。
           </p>
 
-          <div className="mt-8 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-8">
-            <div className="flex max-w-xl flex-col items-start">
-              <div className="flex size-12 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--primary)]">
-                <UploadCloud aria-hidden="true" size={24} />
-              </div>
-              <h2 className="mt-5 text-xl font-semibold">选择 TXT 或 EPUB 文件</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                静态原型阶段暂不执行真实上传。后续会在这里接入文件选择、大小限制、上传进度和解析任务。当前已先建立{" "}
-                {supportedFileFormats} 格式和 {maxUploadSize} 大小边界。
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button variant="secondary">
-                  <FileText aria-hidden="true" size={17} />
-                  选择文件
-                </Button>
-                <Button href={routes.chapters}>查看章节预览示例</Button>
-              </div>
-            </div>
+          <div className="mt-8">
+            <LocalUploadPanel />
           </div>
 
           <section className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
@@ -83,6 +80,68 @@ export default function UploadPage() {
               </div>
             </div>
           </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <h2 className="font-semibold">TXT 拆章准备</h2>
+            <div className="mt-3 space-y-2">
+              {txtChapterRules.map((rule) => (
+                <p key={rule} className="rounded-lg bg-[var(--surface-2)] px-3 py-2 text-sm text-[var(--muted-foreground)]">
+                  {rule}
+                </p>
+              ))}
+            </div>
+          </section>
+
+          {sampleMetadata ? (
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h2 className="font-semibold">元数据预填准备</h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">书名</dt>
+                  <dd className="font-medium">{sampleMetadata.title}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">作者</dt>
+                  <dd className="font-medium">{sampleMetadata.author}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">格式</dt>
+                  <dd className="font-medium">{sampleMetadata.format}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
+
+          {sampleTxtDraft.ok ? (
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h2 className="font-semibold">本地解析草稿</h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">状态</dt>
+                  <dd className="font-medium">
+                    {sampleTxtDraft.parseStatus === "parsed" ? "TXT 已拆章" : sampleTxtDraft.parseStatus}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">章节</dt>
+                  <dd className="font-medium">{sampleTxtDraft.chapters.length} 章</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">第一章</dt>
+                  <dd className="font-medium">{sampleTxtDraft.chapters[0]?.title}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
+
+          {sampleEpubDraft.ok ? (
+            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+              <h2 className="font-semibold">EPUB 处理状态</h2>
+              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                EPUB 已进入上传草稿边界，当前状态为“待 EPUB 解析器”。后续如接入真实解包依赖，会从这一层继续扩展。
+              </p>
+            </section>
+          ) : null}
         </aside>
       </div>
     </AppShell>

@@ -2,10 +2,22 @@ import { AlertTriangle, ArrowRight, FilePenLine, SkipForward } from "lucide-reac
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
+import { ChapterEditorPanel } from "@/components/upload/chapter-editor-panel";
 import { chapters, originalBooks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
+import { buildEditableChapters } from "@/lib/upload/chapter-editing";
+import { buildUploadDraft } from "@/lib/upload/upload-draft";
+import { parseTxtChapters, txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
 
-const parsingRules = ["自动识别", "中文章节：第X章", "英文章节：Chapter X", "按空行和长度辅助识别"];
+const parsingRules = txtChapterParsePolicy.ruleLabels;
+const sampleTextContent = "第一章 雾起\n雾从边境漫过来。\n\n目录\n\n第二章 黑桥\n桥下没有水，只有风。";
+const parsedChapterPreview = parseTxtChapters(sampleTextContent).chapters;
+const editableChapters = buildEditableChapters(parsedChapterPreview);
+const sampleUploadDraft = buildUploadDraft({
+  name: "迷雾边境 - 林间客.txt",
+  size: 4096,
+  textContent: sampleTextContent,
+});
 
 export default function ChapterPreviewPage() {
   const book = originalBooks[0];
@@ -54,6 +66,10 @@ export default function ChapterPreviewPage() {
               </div>
             </div>
           </section>
+
+          {sampleUploadDraft.ok && sampleUploadDraft.parseStatus === "parsed" ? (
+            <ChapterEditorPanel initialChapters={editableChapters} uploadDraft={sampleUploadDraft} />
+          ) : null}
         </aside>
 
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
