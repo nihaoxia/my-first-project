@@ -1,6 +1,49 @@
 import { routes } from "@/lib/routes";
-import { buildMockAccountSummary } from "@/lib/account/mock-account-summary";
+import { buildAdminExportSummary } from "@/lib/admin/admin-export-summary";
+import { buildMockAccountSummary, formatYuanFromCents } from "@/lib/account/mock-account-summary";
 import { buildMockBalanceRecords } from "@/lib/account/mock-balance-ledger";
+import {
+  buildEpubExportDraft,
+  buildTranslatedBookTxtExport,
+} from "@/lib/export/translation-export";
+import {
+  buildSentenceMarkdownExport,
+  buildVocabularyCsvExport,
+} from "@/lib/export/study-export";
+import { answerReaderQuestion, buildReadingAssistantResult } from "@/lib/reader/reading-assistant";
+import { buildReaderView } from "@/lib/reader/reader-view";
+import {
+  createSentenceDraft,
+  createVocabularyDraft,
+  filterSentenceItems,
+  filterVocabularyItems,
+  previewStudyItemDeletion,
+} from "@/lib/reader/study-collections";
+import { assessTranslationQuality } from "@/lib/translation/translation-quality";
+import {
+  buildMockTranslationQueue,
+  getMockTranslationQueueSummary,
+  runMockTranslationQueueBatch,
+  type MockTranslationTaskStatus,
+} from "@/lib/translation/mock-translation-queue";
+import {
+  buildMockReaderChapter,
+  buildMockTranslatedChapter,
+} from "@/lib/translation/mock-translator";
+import {
+  assessTranslationCostHealth,
+  buildTranslationCostLedgerEntry,
+  getTranslationCostLedgerSummary,
+} from "@/lib/translation/translation-cost-ledger";
+import { extractTerminologyCandidates } from "@/lib/translation/terminology";
+import {
+  assessGlossaryTermUsage,
+  confirmBookGlossaryTerm,
+  getRelevantGlossaryTermsForText,
+  upsertTerminologyCandidatesIntoGlossary,
+} from "@/lib/translation/terminology-glossary";
+import { buildTranslationPrompt } from "@/lib/translation/translation-prompt";
+import { splitChapterIntoTranslationSegments } from "@/lib/translation/translation-segments";
 
 export type TranslationStatus =
   | "ready"
@@ -17,7 +60,7 @@ export const accountSummary = {
   frozen: mockAccountSummary.frozenYuan,
   available: mockAccountSummary.availableYuan,
   freeChaptersLeft: mockAccountSummary.freeChaptersLeft,
-  estimatedAfterSelection: "11.60",
+  estimatedAfterSelection: "11.40",
 };
 
 export const originalBooks = [
@@ -85,7 +128,7 @@ export const chapters = [
     id: "chapter-1",
     title: "第一章 雾起",
     words: 3180,
-    cost: "0.20",
+    cost: "1.00",
     status: "ready" as TranslationStatus,
     note: "标题和正文识别正常",
   },
@@ -93,7 +136,7 @@ export const chapters = [
     id: "chapter-2",
     title: "第二章 黑桥",
     words: 2760,
-    cost: "0.10",
+    cost: "0.50",
     status: "processing" as TranslationStatus,
     note: "发现 6 个新增术语",
   },
@@ -101,7 +144,7 @@ export const chapters = [
     id: "chapter-3",
     title: "第三章 无名旅店",
     words: 6120,
-    cost: "0.30",
+    cost: "1.50",
     status: "review" as TranslationStatus,
     note: "章节较长，质检提示段落数量异常",
   },
@@ -109,7 +152,7 @@ export const chapters = [
     id: "chapter-4",
     title: "目录",
     words: 420,
-    cost: "0.10",
+    cost: "0.50",
     status: "skipped" as TranslationStatus,
     note: "疑似目录页，已跳过",
   },
@@ -120,14 +163,14 @@ export const translationTasks = [
     chapter: "第一章 雾起",
     status: "ready" as TranslationStatus,
     progress: "已完成",
-    frozen: "0.20",
+    frozen: "1.00",
     updatedAt: "17:32",
   },
   {
     chapter: "第二章 黑桥",
     status: "processing" as TranslationStatus,
     progress: "翻译中 68%",
-    frozen: "0.10",
+    frozen: "0.50",
     updatedAt: "17:36",
   },
   {
@@ -214,3 +257,487 @@ export const failedTasks = [
 ];
 
 export const balanceRecords = buildMockBalanceRecords();
+
+const stageFiveTaskDrafts = [
+  {
+    chapterId: "chapter-1",
+    chapterTitle: "第一章：雾起",
+    status: "queued" as const,
+    standardUnits: 1,
+    baseCostCents: 50,
+    freeUnitsApplied: 1,
+    frozenCents: 0,
+  },
+  {
+    chapterId: "chapter-2",
+    chapterTitle: "第二章：黑桥",
+    status: "queued" as const,
+    standardUnits: 1,
+    baseCostCents: 50,
+    freeUnitsApplied: 0,
+    frozenCents: 50,
+  },
+  {
+    chapterId: "chapter-3",
+    chapterTitle: "第三章：无名旅店",
+    status: "queued" as const,
+    standardUnits: 3,
+    baseCostCents: 150,
+    freeUnitsApplied: 0,
+    frozenCents: 150,
+  },
+  {
+    chapterId: "chapter-5",
+    chapterTitle: "第五章：灯塔",
+    status: "queued" as const,
+    standardUnits: 2,
+    baseCostCents: 100,
+    freeUnitsApplied: 0,
+    frozenCents: 100,
+  },
+];
+
+export const stageFiveQueue = buildMockTranslationQueue(stageFiveTaskDrafts);
+
+export const stageFiveQueueRun = runMockTranslationQueueBatch({
+  account: {
+    balanceCents: 1230,
+    frozenCents: 300,
+    freeChaptersLeft: 0,
+  },
+  tasks: stageFiveQueue.tasks,
+  failedChapterIds: ["chapter-5"],
+  canceledChapterIds: ["chapter-3"],
+  failureReason: "模拟质检发现段落数量异常，已返还冻结金额。",
+});
+
+export const stageFiveQueueSummary = getMockTranslationQueueSummary(stageFiveQueueRun.tasks);
+
+const stageFiveProviderPricing = {
+  inputCentsPerMillionTokens: 15,
+  outputCentsPerMillionTokens: 60,
+};
+
+export const stageFiveCostLedgerEntries = stageFiveQueueRun.tasks.map((task) =>
+  buildTranslationCostLedgerEntry({
+    taskId: `mock-${task.chapterId}`,
+    chapterId: task.chapterId,
+    providerName: "fake-local-provider",
+    modelName: "local-cost-model",
+    standardUnits: task.standardUnits,
+    freeUnitsApplied: task.freeUnitsApplied,
+    chargedCents: task.chargedCents,
+    status: task.status,
+    tokenUsage: {
+      inputTokens: task.status === "canceled" ? 0 : task.standardUnits * 1600 + task.attempt * 250,
+      outputTokens: task.status === "canceled" ? 0 : task.standardUnits * 2100,
+    },
+    providerPricing: stageFiveProviderPricing,
+    retryCount: task.status === "failed" ? task.attempt + 1 : task.attempt,
+    qualityIssueCount: task.status === "failed" ? 1 : 0,
+  }),
+);
+
+export const stageFiveCostLedgerSummary = getTranslationCostLedgerSummary(stageFiveCostLedgerEntries);
+export const stageFiveCostHealth = assessTranslationCostHealth(stageFiveCostLedgerSummary);
+
+export const translationCostMonitor = {
+  healthLabel: stageFiveCostHealth.label,
+  healthReasonCount: stageFiveCostHealth.reasons.length,
+  chargedYuan: formatYuanFromCents(stageFiveCostLedgerSummary.totalChargedCents),
+  freeCoverageYuan: formatYuanFromCents(stageFiveCostLedgerSummary.totalFreeCoverageCents),
+  providerCostYuan: formatYuanFromCents(stageFiveCostLedgerSummary.totalProviderCostCents),
+  grossMarginYuan: formatYuanFromCents(stageFiveCostLedgerSummary.totalGrossMarginCents),
+  grossMarginPercent:
+    stageFiveCostLedgerSummary.grossMarginPercent === null
+      ? "-"
+      : `${stageFiveCostLedgerSummary.grossMarginPercent.toFixed(2)}%`,
+  lossMakingTasks: stageFiveCostLedgerSummary.lossMakingTasks,
+  totalRetryCount: stageFiveCostLedgerSummary.totalRetryCount,
+  totalQualityIssueCount: stageFiveCostLedgerSummary.totalQualityIssueCount,
+  reasons: stageFiveCostHealth.reasons,
+};
+
+export const stageFiveTranslationTasks = stageFiveQueueRun.tasks.map((task, index) => ({
+  chapter: task.chapterTitle,
+  status: mapMockTaskStatusToDisplayStatus(task.status),
+  progress: getStageFiveTaskProgress(task.status, task.progressPercent),
+  frozen: task.frozenCents > 0 ? formatYuanFromCents(task.frozenCents) : "免费额度",
+  balanceEffect: getStageFiveBalanceEffect(task),
+  updatedAt: `17:${32 + index * 4}`,
+  failureReason: task.failureReason,
+}));
+
+export const stageFiveQueueMonitor = {
+  totalChapters: stageFiveQueueSummary.total,
+  runningTasks: stageFiveQueueSummary.running,
+  queuedChapters: stageFiveQueueSummary.queued,
+  succeededChapters: stageFiveQueueSummary.succeeded,
+  failedChapters: stageFiveQueueSummary.failed,
+  canceledChapters: stageFiveQueueSummary.canceled,
+  progressPercent:
+    stageFiveQueueSummary.total === 0
+      ? 0
+      : Math.round(
+          ((stageFiveQueueSummary.succeeded +
+            stageFiveQueueSummary.failed +
+            stageFiveQueueSummary.canceled) /
+            stageFiveQueueSummary.total) *
+            100,
+        ),
+  chargedYuan: formatYuanFromCents(stageFiveQueueSummary.chargedCents),
+  releasedYuan: formatYuanFromCents(stageFiveQueueSummary.releasedCents),
+};
+
+export const stageFiveTranslatedChapters = [
+  buildMockTranslatedChapter({
+    chapterId: "chapter-1",
+    title: "第一章：雾起",
+    targetLanguage: "英文",
+    sourceParagraphs: [
+      "雾像一层沉睡的灰布，缓慢盖过边境。",
+      "守望塔上，林已经看不见黑桥，只能看见桥肋上的灯在摇晃。",
+    ],
+  }),
+  buildMockTranslatedChapter({
+    chapterId: "chapter-2",
+    title: "第二章：黑桥",
+    targetLanguage: "英文",
+    sourceParagraphs: [
+      "他没有回答，只把灯举得更高。",
+      "老雾守曾提醒他，雾里的名字会改变，粗心的翻译会唤来错误的记忆。",
+      "旅店门槛前，地板发出耐心的轻响。",
+    ],
+  }),
+];
+
+export const stageFiveReaderChapter = buildMockReaderChapter(stageFiveTranslatedChapters, "chapter-2");
+
+const stageSevenReaderSourceChapters = [
+  {
+    id: "chapter-1",
+    title: "第一章：雾起",
+    wordCount: 3180,
+    sourceParagraphs: [
+      "雾像一层沉睡的灰布，缓慢盖过边境。",
+      "守望塔上，林已经看不见黑桥，只能看见桥肋上的灯在摇晃。",
+    ],
+    translatedParagraphs: stageFiveTranslatedChapters[0].paragraphs,
+  },
+  {
+    id: "chapter-2",
+    title: "第二章：黑桥",
+    wordCount: 2760,
+    sourceParagraphs: [
+      "他没有回答，只把灯举得更高。",
+      "老雾守曾提醒他，雾里的名字会改变，粗心的翻译会唤来错误的记忆。",
+      "旅店门槛前，地板发出耐心的轻响。",
+    ],
+    translatedParagraphs: stageFiveTranslatedChapters[1].paragraphs,
+  },
+  {
+    id: "chapter-3",
+    title: "第三章：无名旅店",
+    wordCount: 6120,
+    sourceParagraphs: ["旅店没有招牌，只有一排被雾打湿的窗。"],
+    translatedParagraphs: ["[Mock English] The inn had no sign, only windows dampened by mist."],
+  },
+];
+
+export const stageSevenReaderView = buildReaderView({
+  chapters: stageSevenReaderSourceChapters,
+  currentChapterId: "chapter-2",
+  mode: "parallel",
+  settings: {
+    fontSize: 18,
+    lineHeight: 1.9,
+    contentWidth: 780,
+    theme: "light",
+  },
+});
+
+export const stageSevenAssistantResult = buildReadingAssistantResult({
+  kind: "sentence",
+  selectedText: "他没有回答，只把灯举得更高。",
+  sourceText: stageSevenReaderView.paragraphRows[0].sourceText,
+  translatedText: stageSevenReaderView.paragraphRows[0].translatedText,
+  bookTitle: "迷雾边境",
+  chapterTitle: stageSevenReaderView.currentChapter.title,
+});
+
+export const stageSevenQuestionAnswer = answerReaderQuestion({
+  question: "为什么这里用分号？",
+  paragraph: stageSevenReaderView.paragraphRows[0].translatedText,
+  chapterTitle: stageSevenReaderView.currentChapter.title,
+});
+
+export const stageSevenVocabularyItems = [
+  createVocabularyDraft({
+    term: "threshold",
+    explanation: "门槛；临界点",
+    contextualMean: "进入事件前的边界感",
+    sourceSentence: "He paused at the threshold of the inn.",
+    bookId: "demo-book",
+    bookTitle: "迷雾边境",
+    chapterId: "chapter-2",
+    chapterTitle: "第二章：黑桥",
+    note: "这里不是普通门槛。",
+  }),
+  createVocabularyDraft({
+    term: "mistwarden",
+    explanation: "雾境守望者",
+    contextualMean: "负责守望雾境边界的人",
+    sourceSentence: "The old mistwarden raised his lantern.",
+    bookId: "demo-book",
+    bookTitle: "迷雾边境",
+    chapterId: "chapter-1",
+    chapterTitle: "第一章：雾起",
+    note: "设定词，后续保持一致。",
+  }),
+  createVocabularyDraft({
+    term: "make out",
+    explanation: "勉强辨认出",
+    contextualMean: "在雾中看清轮廓",
+    sourceSentence: "She could barely make out the bridge.",
+    bookId: "demo-book",
+    bookTitle: "迷雾边境",
+    chapterId: "chapter-2",
+    chapterTitle: "第二章：黑桥",
+    note: "",
+  }),
+];
+
+export const stageSevenSentenceItems = [
+  createSentenceDraft({
+    originalText: "雾像一层没睡醒的灰布，缓慢地盖过了边境。",
+    translatedText: "The mist moved like a drowsy gray cloth, slowly covering the border.",
+    explanation: "比喻句，译文保留了雾的缓慢和沉重感。",
+    bookId: "demo-book",
+    bookTitle: "迷雾边境",
+    chapterId: "chapter-1",
+    chapterTitle: "第一章：雾起",
+    note: "适合学习具象比喻。",
+  }),
+  createSentenceDraft({
+    originalText: "他没有回答，只把灯举得更高。",
+    translatedText: "He did not answer; he simply raised the lamp higher.",
+    explanation: "分号处理两个紧密动作，保持小说叙事节奏。",
+    bookId: "demo-book",
+    bookTitle: "迷雾边境",
+    chapterId: "chapter-2",
+    chapterTitle: "第二章：黑桥",
+    note: "",
+  }),
+];
+
+export const stageSevenVocabularyView = {
+  query: "mist",
+  selectedBookId: "demo-book",
+  availableBooks: [{ id: "demo-book", title: "迷雾边境" }],
+  items: filterVocabularyItems(stageSevenVocabularyItems, {
+    query: "",
+    bookId: "demo-book",
+  }),
+  deletionPreview: previewStudyItemDeletion({
+    id: stageSevenVocabularyItems[0].id,
+    kind: "vocabulary",
+    label: stageSevenVocabularyItems[0].term,
+  }),
+};
+
+export const stageSevenSentenceView = {
+  query: "分号",
+  selectedBookId: "demo-book",
+  availableBooks: [{ id: "demo-book", title: "迷雾边境" }],
+  items: filterSentenceItems(stageSevenSentenceItems, {
+    query: "",
+    bookId: "demo-book",
+  }),
+  deletionPreview: previewStudyItemDeletion({
+    id: stageSevenSentenceItems[1].id,
+    kind: "sentence",
+    label: stageSevenSentenceItems[1].originalText,
+  }),
+};
+
+const stageEightTranslatedBookInput = {
+  title: translatedBooks[0].title,
+  originalTitle: translatedBooks[0].originalTitle,
+  targetLanguage: translatedBooks[0].targetLanguage,
+  chapters: stageSevenReaderSourceChapters.map((chapter) => ({
+    id: chapter.id,
+    title: chapter.title,
+    paragraphs: chapter.translatedParagraphs,
+  })),
+  chapterOrder: stageSevenReaderSourceChapters.map((chapter) => chapter.id),
+};
+
+export const stageEightTxtExport = buildTranslatedBookTxtExport(stageEightTranslatedBookInput);
+export const stageEightEpubDraft = buildEpubExportDraft(stageEightTranslatedBookInput);
+export const stageEightVocabularyCsvExport = buildVocabularyCsvExport({
+  bookTitle: "迷雾边境",
+  items: stageSevenVocabularyItems,
+});
+export const stageEightSentenceMarkdownExport = buildSentenceMarkdownExport({
+  bookTitle: "迷雾边境",
+  items: stageSevenSentenceItems,
+});
+
+export const stageEightExportFiles = [
+  { fileName: stageEightTxtExport.fileName, format: "TXT" },
+  { fileName: stageEightEpubDraft.fileName, format: "EPUB 草稿" },
+  { fileName: stageEightVocabularyCsvExport.fileName, format: "CSV" },
+  { fileName: stageEightSentenceMarkdownExport.fileName, format: "Markdown" },
+];
+
+export const stageEightAdminSummary = buildAdminExportSummary({
+  userCount: 128,
+  balanceRecordCount: balanceRecords.length,
+  translationTaskCount: stageFiveQueueSummary.total,
+  failedTaskCount: failedTasks.length,
+  usageLabel: "2.1M tokens",
+  exportFiles: stageEightExportFiles,
+});
+
+const stageSixSourceText = [
+  "《雾灯协议》第一次被 Mistwarden Lin 提起时，黑桥下的水还没有倒流。",
+  "他没有回答，只把灯举得更高，让雾守的影子落在旧地图上。",
+  "如果联网查证以后仍找不到对应设定，就保留 Mistwarden Lin 的专名，并在术语表里固定译法。",
+].join("\n\n");
+
+export const stageSixSegments = splitChapterIntoTranslationSegments({
+  chapterId: "chapter-2",
+  chapterTitle: "第二章：黑桥",
+  text: stageSixSourceText,
+  maxCharactersPerSegment: 70,
+});
+
+export const stageSixTerminologyCandidates = extractTerminologyCandidates({
+  sourceLanguage: "中文",
+  texts: stageSixSegments.map((segment) => segment.text),
+});
+
+const stageSixPendingGlossary = upsertTerminologyCandidatesIntoGlossary({
+  bookId: "demo-book",
+  sourceLanguage: "中文",
+  targetLanguage: "英文",
+  chapterId: "chapter-2",
+  existingTerms: [],
+  candidates: stageSixTerminologyCandidates,
+});
+
+export const stageSixBookGlossary = stageSixPendingGlossary.map((term) => {
+  if (term.sourceTerm === "《雾灯协议》") {
+    return confirmBookGlossaryTerm(term, {
+      targetTerm: "The Mist-Lamp Protocol",
+      confidence: 0.88,
+    });
+  }
+
+  if (term.sourceTerm === "Mistwarden Lin") {
+    return confirmBookGlossaryTerm(term, {
+      targetTerm: "Mistwarden Lin",
+      confidence: 0.94,
+    });
+  }
+
+  return term;
+});
+
+const stageSixRelevantGlossaryTerms = getRelevantGlossaryTermsForText({
+  text: stageSixSegments.map((segment) => segment.text).join("\n"),
+  glossary: stageSixBookGlossary,
+});
+
+export const stageSixPromptPreview = buildTranslationPrompt({
+  targetLanguage: "英文",
+  style: "自然流畅，保留小说叙事节奏",
+  webLookupEnabled: true,
+  glossaryTerms: stageSixRelevantGlossaryTerms,
+  segment: stageSixSegments[0],
+});
+
+export const stageSixQualityResult = assessTranslationQuality({
+  sourceSegments: stageSixSegments,
+  translatedSegments: stageSixSegments.map((segment) => ({
+    segmentId: segment.id,
+    index: segment.index,
+    translatedText: `[Prepared ${segment.index + 1}] The local AI prep layer keeps this segment aligned for English output.`,
+  })),
+});
+
+const stageSixGlossaryUsageIssues = assessGlossaryTermUsage({
+  sourceText: stageSixSegments.map((segment) => segment.text).join("\n"),
+  translatedText: "Mistwarden Lin mentioned The Mist-Lamp Protocol near the black bridge.",
+  glossary: stageSixBookGlossary,
+});
+
+export const stageSixAiPrep = {
+  segmentCount: stageSixSegments.length,
+  promptSegment: stageSixPromptPreview.metadata.segmentId,
+  promptLookup: "启用",
+  terminologyCount: stageSixTerminologyCandidates.length,
+  topTerms: stageSixTerminologyCandidates.slice(0, 3).map((candidate) => candidate.term),
+  glossaryTotal: stageSixBookGlossary.length,
+  glossaryConfirmed: stageSixBookGlossary.filter((term) => term.status === "confirmed").length,
+  relevantGlossaryTerms: stageSixRelevantGlossaryTerms.map((term) => term.sourceTerm),
+  glossaryIssueCount: stageSixGlossaryUsageIssues.length,
+  qualityStatus: stageSixQualityResult.status === "passed" ? "通过" : "需检查",
+  qualityIssueCount: stageSixQualityResult.issues.length,
+  providerStatus: "Fake Provider 就绪",
+};
+
+function mapMockTaskStatusToDisplayStatus(status: MockTranslationTaskStatus): TranslationStatus {
+  if (status === "succeeded") {
+    return "ready";
+  }
+
+  if (status === "failed") {
+    return "failed";
+  }
+
+  if (status === "canceled") {
+    return "skipped";
+  }
+
+  if (status === "running") {
+    return "processing";
+  }
+
+  return "queued";
+}
+
+function getStageFiveTaskProgress(status: MockTranslationTaskStatus, progressPercent: number) {
+  if (status === "succeeded") {
+    return "模拟译文已生成，冻结金额已转为扣费。";
+  }
+
+  if (status === "failed") {
+    return "模拟任务失败，冻结金额已返还。";
+  }
+
+  if (status === "canceled") {
+    return "用户取消队列任务，冻结金额已返还。";
+  }
+
+  if (status === "running") {
+    return `模拟翻译处理中 ${progressPercent}%`;
+  }
+
+  return "等待本地模拟队列调度。";
+}
+
+function getStageFiveBalanceEffect(task: {
+  chargedCents: number;
+  releasedCents: number;
+}) {
+  if (task.chargedCents > 0) {
+    return `扣费 ${formatYuanFromCents(task.chargedCents)}`;
+  }
+
+  if (task.releasedCents > 0) {
+    return `返还 ${formatYuanFromCents(task.releasedCents)}`;
+  }
+
+  return "无余额变动";
+}

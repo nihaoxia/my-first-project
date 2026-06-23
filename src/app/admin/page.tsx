@@ -1,8 +1,16 @@
-import { Ban, Database, ListChecks, Wallet } from "lucide-react";
+import { Ban, Database, Download, ListChecks, Wallet } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
-import { adminMetrics, balanceRecords, failedTasks } from "@/lib/mock-data";
+import {
+  adminMetrics,
+  balanceRecords,
+  failedTasks,
+  stageEightAdminSummary,
+  stageFiveQueueMonitor,
+  stageSixAiPrep,
+  translationCostMonitor,
+} from "@/lib/mock-data";
 
 export default function AdminPage() {
   return (
@@ -94,25 +102,131 @@ export default function AdminPage() {
 
           <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
             <div className="mb-4 flex items-center gap-2">
+              <Download aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">导出与运营摘要</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              {stageEightAdminSummary.items.map((item) => (
+                <div key={item.label} className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">{item.label}</dt>
+                  <dd className="font-medium">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-4 space-y-2">
+              {stageEightAdminSummary.exportFiles.map((file) => (
+                <div
+                  key={file.fileName}
+                  className="rounded-lg bg-[var(--surface-2)] p-3 text-sm"
+                >
+                  <p className="font-medium">{file.format}</p>
+                  <p className="mt-1 break-all text-[var(--muted-foreground)]">{file.fileName}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
               <Database aria-hidden="true" size={18} className="text-[var(--primary)]" />
               <h2 className="font-semibold">队列监控</h2>
             </div>
             <dl className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <dt className="text-[var(--muted-foreground)]">运行中任务</dt>
-                <dd className="font-medium">23</dd>
+                <dd className="font-medium">{stageFiveQueueMonitor.runningTasks}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-[var(--muted-foreground)]">排队中章节</dt>
-                <dd className="font-medium">146</dd>
+                <dd className="font-medium">{stageFiveQueueMonitor.queuedChapters}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-[var(--muted-foreground)]">平均质检耗时</dt>
-                <dd className="font-medium">18 秒</dd>
+                <dt className="text-[var(--muted-foreground)]">完成章节</dt>
+                <dd className="font-medium">{stageFiveQueueMonitor.succeededChapters}</dd>
               </div>
               <div className="flex justify-between">
-                <dt className="text-[var(--muted-foreground)]">今日自动重试</dt>
-                <dd className="font-medium">31 次</dd>
+                <dt className="text-[var(--muted-foreground)]">返还金额</dt>
+                <dd className="font-medium">¥ {stageFiveQueueMonitor.releasedYuan}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Wallet aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">成本监控</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">健康状态</dt>
+                <dd className="font-medium">{translationCostMonitor.healthLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">确认收入</dt>
+                <dd className="font-medium">¥ {translationCostMonitor.chargedYuan}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">免费履约</dt>
+                <dd className="font-medium">¥ {translationCostMonitor.freeCoverageYuan}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">内部成本</dt>
+                <dd className="font-medium">¥ {translationCostMonitor.providerCostYuan}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">毛利</dt>
+                <dd className="font-medium">¥ {translationCostMonitor.grossMarginYuan}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">毛利率</dt>
+                <dd className="font-medium">{translationCostMonitor.grossMarginPercent}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">需关注任务</dt>
+                <dd className="font-medium">{translationCostMonitor.lossMakingTasks}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">风险原因</dt>
+                <dd className="font-medium">{translationCostMonitor.healthReasonCount}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <ListChecks aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">AI 准备状态</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">分段数量</dt>
+                <dd className="font-medium">{stageSixAiPrep.segmentCount}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">术语候选</dt>
+                <dd className="font-medium">{stageSixAiPrep.terminologyCount}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">内部术语本</dt>
+                <dd className="font-medium">
+                  {stageSixAiPrep.glossaryConfirmed}/{stageSixAiPrep.glossaryTotal} 已确认
+                </dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">本章匹配术语</dt>
+                <dd className="font-medium">{stageSixAiPrep.relevantGlossaryTerms.length}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">术语一致性问题</dt>
+                <dd className="font-medium">{stageSixAiPrep.glossaryIssueCount}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">质检结果</dt>
+                <dd className="font-medium">{stageSixAiPrep.qualityStatus}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">Provider</dt>
+                <dd className="font-medium">{stageSixAiPrep.providerStatus}</dd>
               </div>
             </dl>
           </section>

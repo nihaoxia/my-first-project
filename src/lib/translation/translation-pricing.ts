@@ -1,4 +1,4 @@
-export const TRANSLATION_PRICE_PER_STANDARD_UNIT_CENTS = 10;
+export const TRANSLATION_PRICE_PER_STANDARD_UNIT_CENTS = 50;
 
 const CJK_SOURCE_LANGUAGES = new Set(["中文", "日文", "韩文"]);
 

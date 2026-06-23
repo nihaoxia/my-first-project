@@ -11,10 +11,12 @@ export type MockAccountSummary = {
   freeChaptersLeft: number;
 };
 
+export const DEFAULT_FREE_STANDARD_UNITS_PER_USER = 5;
+
 export const defaultMockAccount: MockAccountInput = {
   balanceCents: 1230,
   frozenCents: 40,
-  freeChaptersLeft: 12,
+  freeChaptersLeft: DEFAULT_FREE_STANDARD_UNITS_PER_USER,
 };
 
 export function buildMockAccountSummary(input: MockAccountInput = defaultMockAccount): MockAccountSummary {

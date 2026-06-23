@@ -15,7 +15,7 @@ export function getStageFourReadiness(): StageFourReadiness {
     localItems: [
       { label: "目标语言选项和第一版默认翻译配置已建立", status: "complete" },
       { label: "按源语言估算标准章数的纯逻辑已建立", status: "complete" },
-      { label: "按 0.1 元 / 标准章计算费用的纯逻辑已建立", status: "complete" },
+      { label: "按 0.5 元 / 标准章计算费用的纯逻辑已建立", status: "complete" },
       { label: "免费标准章额度抵扣规则已建立", status: "complete" },
       { label: "译本创建页实时费用估算交互已接入", status: "complete" },
       { label: "创建译本前的数据形状已建立", status: "complete" },

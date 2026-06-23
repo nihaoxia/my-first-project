@@ -28,7 +28,7 @@ test("builds a normal user profile from a mock session", () => {
       isAdmin: false,
       balanceYuan: "12.30",
       frozenYuan: "0.40",
-      freeChaptersLeft: 12,
+      freeChaptersLeft: 5,
     },
   );
 });

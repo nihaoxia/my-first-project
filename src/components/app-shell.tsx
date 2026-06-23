@@ -63,7 +63,7 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
                     余额 ¥{profile.balanceYuan}
                   </span>
                   <span>冻结 ¥{profile.frozenYuan}</span>
-                  <span>免费 {profile.freeChaptersLeft} 章</span>
+                  <span>免费 {profile.freeChaptersLeft} 个标准章</span>
                 </div>
               </div>
               <span className="rounded-sm border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] lg:hidden">

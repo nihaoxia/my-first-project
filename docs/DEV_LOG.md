@@ -301,10 +301,136 @@
   - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
   - `.env`、`.env.local`、`.env.production` 无差异。
   - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+- 阶段 5 已启动并完成本地范围，创建后台任务队列和模拟翻译实施计划 `docs/superpowers/plans/2026-06-23-background-queue-mock-translation.md`。
+- 阶段 5 完成本地翻译任务队列状态机：
+  - 新增 `src/lib/translation/mock-translation-queue.ts`，从阶段 4 的任务草稿生成本地队列任务。
+  - 支持 queued、running、succeeded、failed、canceled 的本地状态流转。
+  - 成功任务会将冻结金额转为扣费；失败和取消任务会返还冻结金额。
+  - 队列摘要可统计排队、运行、完成、失败、取消以及扣费/返还金额。
+  - 新增 `tests/mock-translation-queue.test.ts`，覆盖任务生成、成功扣费、失败返还、取消返还和队列摘要。
+- 阶段 5 完成模拟译文生成：
+  - 新增 `src/lib/translation/mock-translator.ts`，用确定性模板从原文段落生成本地模拟译文。
+  - 新增 `tests/mock-translator.test.ts`，覆盖章节信息保留、空段落过滤、固定模板输出和阅读器章节选择。
+- 阶段 5 页面接入：
+  - `src/lib/mock-data.ts` 新增阶段 5 专用 mock 数据，统一生成任务页、阅读器和后台队列摘要展示数据。
+  - `src/app/translations/[translationId]/tasks/page.tsx` 改为展示本地模拟队列结果、余额处理和失败原因。
+  - `src/app/reader/page.tsx` 改为展示模拟译文模块生成的章节内容。
+  - `src/app/admin/page.tsx` 的队列监控改为读取同一批本地模拟队列摘要。
+- 阶段 5 本地范围收口：
+  - 新增 `src/lib/project/stage-five-readiness.ts`，记录阶段 5 本地完成项和后续外部接入阻塞项。
+  - 新增 `tests/stage-five-readiness.test.ts`，覆盖阶段 5 本地完成度和真实队列、真实 AI、远程数据库、真实支付后置说明。
+  - `docs/ROADMAP.md` 将阶段 5 标记为“已完成（本地范围）”，并补充本地完成内容和后续接入项。
+  - 当前实现不启动真实后台进程，不访问网络，不接真实 AI，不写入远程数据库。
+- 本轮阶段 5 验证通过：
+  - `pnpm test`：97 项通过，0 项失败；运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+- 阶段 6 已启动并完成本地范围，创建真实 AI 翻译本地准备实施计划 `docs/superpowers/plans/2026-06-23-ai-translation-local-prep.md`。
+- 阶段 6 完成 AI 翻译接入前的本地准备层：
+  - 新增 `src/lib/translation/translation-segments.ts`，支持按段落和字符上限将长章节稳定拆成 segment，并处理超长单段硬切分。
+  - 新增 `src/lib/translation/translation-prompt.ts`，构建包含目标语言、翻译风格、联网查证标记、术语表和原文 segment 的提示词输入。
+  - 新增 `src/lib/translation/translation-provider.ts`，定义 AI 翻译 Provider 接口，并提供本地 `fake-local-provider`，后续真实模型接入时可替换同一接口。
+  - 新增 `src/lib/translation/terminology.ts`，建立本地术语候选抽取数据形状，当前支持中文书名号术语和英文专名候选。
+  - 新增 `src/lib/translation/translation-quality.ts`，建立基础质检结果形状，覆盖空译文、分段数量不一致和明显原文残留。
+  - 新增 `src/lib/project/stage-six-readiness.ts`，记录阶段 6 本地完成项和真实 AI、联网查证、远程数据库、真实队列等后续阻塞项。
+  - `src/lib/mock-data.ts` 新增阶段 6 mock 准备数据，任务页和后台页可展示分段数量、术语候选、质检状态和 Fake Provider 状态。
+  - `src/app/translations/[translationId]/tasks/page.tsx` 新增阶段 6 AI 准备层摘要。
+  - `src/app/admin/page.tsx` 新增后台 AI 准备状态卡。
+  - 当前实现不访问网络，不安装新依赖，不读取或提交真实 `.env`，不调用真实 AI，不写入远程数据库。
+- 阶段 6 新增测试：
+  - `tests/translation-segments.test.ts`
+  - `tests/translation-prompt.test.ts`
+  - `tests/translation-provider.test.ts`
+  - `tests/terminology.test.ts`
+  - `tests/translation-quality.test.ts`
+  - `tests/stage-six-readiness.test.ts`
+- 本轮阶段 6 单元测试验证通过：
+  - `pnpm test`：110 项通过，0 项失败；运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+- 计费和用户侧翻译创建体验按最新产品讨论调整：
+  - 正式产品规则从 `0.1 元 / 标准章` 调整为 `0.5 元 / 标准章`。
+  - 开发期默认每个用户免费 5 个标准章，创建译本时先抵扣免费额度，再计算预计冻结金额。
+  - 继续使用人民币余额和预计费用展示，不引入“翻译点”等新前台概念。
+  - 译本创建页移除用户可见的“术语联网查证”开关；术语本、术语查证和一致性检查保留为后台策略，不增加用户决策负担。
+  - 任务页移除面向用户的联网查证标记描述。
+  - 阶段 5 本地模拟任务金额同步按 `0.5 元 / 标准章` 展示和流转。
+- 阶段 6 继续补充每本书内部术语本能力：
+  - 新增 `src/lib/translation/terminology-glossary.ts`，建立每本书内部术语本数据形状。
+  - 支持把本地术语候选写入术语本，新增术语默认为 `pending`。
+  - 支持确认术语译法后转为 `confirmed`，后续章节翻译前只从本地术语本匹配相关术语，不重复外部查证。
+  - 支持译后检查确认术语是否使用了内部术语本译法。
+  - 新增 `tests/terminology-glossary.test.ts`，覆盖新增术语、重复术语合并、术语确认、章节本地匹配和术语一致性问题。
+  - 后台 AI 准备状态新增内部术语本统计；普通用户侧不展示术语本、术语 API 或联网查证开关。
+- 补充后台内部成本监控能力，用于验证 `0.5 元 / 标准章` 的定价是否健康，但不改变用户侧简单收费规则：
+  - 新增 `src/lib/translation/translation-cost-ledger.ts`，记录单个翻译任务的确认收入、免费履约金额、模型估算成本、重试次数、质检问题、毛利和亏损标记。
+  - 失败任务不会计入收入，免费标准章仍会计入后台履约成本，取消任务不计入模型调用成本。
+  - `src/lib/mock-data.ts` 基于阶段 5 本地队列生成成本账本汇总，后台页面新增“成本监控”卡片展示确认收入、免费履约、内部成本、毛利率和需关注任务。
+  - 新增 `tests/translation-cost-ledger.test.ts`，覆盖单任务毛利、免费额度成本、失败任务收入归零和后台汇总。
+  - 普通用户页面仍只展示人民币价格、免费标准章和余额，不展示 token、模型、API 或复杂成本概念。
+- 继续补充后台成本健康判断：
+  - `src/lib/translation/translation-cost-ledger.ts` 新增 `assessTranslationCostHealth`，按毛利率、亏损任务占比、平均重试次数和质检问题占比判断“健康 / 需关注 / 亏损”。
+  - 后台成本监控卡片新增健康状态和风险原因数量。
+  - 新增测试覆盖健康、需关注和亏损三类判断。
+- 本轮后台成本监控验证通过：
+  - `pnpm test`：123 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 7 已启动并完成本地范围，创建阅读器和学习收藏本地闭环实施计划 `docs/superpowers/plans/2026-06-23-reader-study-local.md`。
+- 阶段 7 完成阅读学习体验本地骨架：
+  - 新增 `src/lib/reader/reader-view.ts`，建立阅读器模式、阅读设置、章节导航和段落对照视图模型。
+  - 新增 `src/lib/reader/reading-assistant.ts`，建立阅读助手本地解释和当前段落问答数据形状；普通用户页面不展示模型、token、API 或联网查证细节。
+  - 新增 `src/lib/reader/study-collections.ts`，建立词汇本和句子本收藏草稿、搜索、筛选、重复词合并和删除预览逻辑。
+  - 新增 `src/lib/project/stage-seven-readiness.ts`，记录阶段 7 本地完成项和真实 AI、远程数据库、跨设备同步、导出等后续阻塞项。
+  - `src/lib/mock-data.ts` 接入阶段 7 本地视图数据，统一生成阅读器、阅读助手、词汇本和句子本页面展示数据。
+  - `src/app/reader/page.tsx` 改为展示对照阅读、阅读设置摘要、阅读助手解释、当前段落问答和收藏入口。
+  - `src/app/study/vocabulary/page.tsx` 和 `src/app/study/sentences/page.tsx` 改为使用本地收藏模块生成的数据，展示搜索、筛选、备注、来源和删除入口。
+  - `docs/ROADMAP.md` 将阶段 7 标记为“已完成（本地范围）”，明确真实 AI 阅读助手、远程持久化、跨设备同步和学习资料导出仍为后续接入项。
+- 阶段 7 新增测试：
+  - `tests/reader-view.test.ts`
+  - `tests/reading-assistant.test.ts`
+  - `tests/study-collections.test.ts`
+  - `tests/stage-seven-readiness.test.ts`
+- 本轮阶段 7 验证通过：
+  - `pnpm test`：135 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 8 已启动并完成本地范围，创建导出和后台管理本地闭环实施计划 `docs/superpowers/plans/2026-06-23-export-admin-local.md`。
+- 阶段 8 完成译本和学习资料导出本地数据层：
+  - 新增 `src/lib/export/translation-export.ts`，支持生成译本 TXT 内容和 EPUB 导出草稿数据形状；当前不写真实文件、不生成真实 `.epub` 二进制包。
+  - 新增 `src/lib/export/study-export.ts`，支持生成词汇本 CSV 内容和句子本 Markdown 内容，覆盖 CSV 引号转义和来源/备注输出。
+  - 新增 `src/lib/admin/admin-export-summary.ts`，生成后台导出文件、用户、余额记录、翻译任务、失败记录和用量摘要。
+  - 新增 `src/lib/project/stage-eight-readiness.ts`，记录阶段 8 本地完成项和真实下载、真实 EPUB 打包、远程数据库查询、真实后台操作审计等后续阻塞项。
+  - `src/lib/mock-data.ts` 接入阶段 8 导出结果，统一生成译本 TXT、EPUB 草稿、词汇 CSV、句子 Markdown 和后台运营摘要。
+  - `src/app/reader/page.tsx` 新增译本导出入口和本地文件名展示；普通用户仍只看到格式、文件名和导出入口，不展示 token、模型、API、术语联网查证或后台成本概念。
+  - `src/app/study/vocabulary/page.tsx` 和 `src/app/study/sentences/page.tsx` 新增学习资料导出文件名展示，保持用户侧简单。
+  - `src/app/admin/page.tsx` 新增“导出与运营摘要”卡片，后台可查看导出文件、用户、余额、任务、失败记录和用量摘要。
+- 阶段 8 新增测试：
+  - `tests/translation-export.test.ts`
+  - `tests/study-export.test.ts`
+  - `tests/admin-export-summary.test.ts`
+  - `tests/stage-eight-readiness.test.ts`
+- 本轮阶段 8 验证通过：
+  - `pnpm test`：142 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
 
 ### 后续待办
 
-- 阶段 5：后台任务队列和模拟翻译，先跑通任务状态流转和模拟译文生成。
+- 阶段 8 后续真实接入：实现真实浏览器文件下载，当前仅生成文件名和内容字符串。
+- 阶段 8 后续真实接入：实现真实 EPUB zip / OPF / NCX / manifest 打包；如需安装依赖，需先单独请求权限。
+- 阶段 8 后续真实接入：将后台摘要改为远程数据库查询，并加入真实导出记录。
+- 阶段 8 后续真实接入：封禁、加余额、退款、导出等后台操作需要写入审计记录。
+- 阶段 7 后续真实接入：确认真实 AI 阅读助手模型、API key、调用成本、限频和安全边界后，实现真实阅读助手 Provider。
+- 阶段 7 后续真实接入：将阅读设置、词汇本和句子本写入远程数据库，并支持跨设备同步。
+- 阶段 6 后续真实接入：确认 AI 模型供应商、API key、调用成本和限频策略后，实现真实 AI Provider。
+- 阶段 6 后续真实接入：确认联网查证数据源和安全边界后，实现真实联网查证。
+- 阶段 6 后续真实接入：将术语、译文分段结果和质检记录写入远程数据库。
+- 真实后台任务队列后续接入：需要在 Trigger.dev 和 Inngest 之间做最终选择；接入或安装依赖前需单独请求权限。
 - 真实对象存储上传和 Supabase Storage 生产配置后续接入。
 - 后续如要支持真实 EPUB 解包，需要先评估并确认依赖方案；安装依赖前需单独请求用户权限。
 - 原版书和章节写入真实远程数据库，需要等真实 Supabase/Prisma 连接配置就绪后接入。

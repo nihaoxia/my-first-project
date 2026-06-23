@@ -3,7 +3,12 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
-import { accountSummary, translatedBooks, translationTasks } from "@/lib/mock-data";
+import {
+  stageFiveQueueMonitor,
+  stageFiveTranslationTasks,
+  stageSixAiPrep,
+  translatedBooks,
+} from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
 export default function TranslationTasksPage() {
@@ -23,10 +28,10 @@ export default function TranslationTasksPage() {
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="翻译进度" value={`${translation.progress}%`} detail="按章节统计" />
-        <MetricCard label="完成章节" value={`${translation.completedChapters}`} detail="已正式扣费" />
-        <MetricCard label="失败章节" value={`${translation.failedChapters}`} detail="冻结金额已返还" />
-        <MetricCard label="冻结金额" value={`¥ ${accountSummary.frozen}`} detail="任务处理中" />
+        <MetricCard label="翻译进度" value={`${stageFiveQueueMonitor.progressPercent}%`} detail="按本地模拟队列统计" />
+        <MetricCard label="完成章节" value={`${stageFiveQueueMonitor.succeededChapters}`} detail="模拟任务已扣费" />
+        <MetricCard label="失败章节" value={`${stageFiveQueueMonitor.failedChapters}`} detail="冻结金额已返还" />
+        <MetricCard label="已返还金额" value={`¥ ${stageFiveQueueMonitor.releasedYuan}`} detail="失败或取消任务" />
       </div>
 
       <section className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)]">
@@ -37,8 +42,8 @@ export default function TranslationTasksPage() {
           </p>
         </div>
         <div className="divide-y divide-[var(--border)]">
-          {translationTasks.map((task) => (
-            <div key={task.chapter} className="grid gap-4 p-5 lg:grid-cols-[1fr_160px_140px_120px]">
+          {stageFiveTranslationTasks.map((task) => (
+            <div key={task.chapter} className="grid gap-4 p-5 lg:grid-cols-[1fr_150px_140px_140px_80px]">
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-medium">{task.chapter}</h3>
@@ -54,13 +59,49 @@ export default function TranslationTasksPage() {
                 <p className="text-[var(--muted-foreground)]">更新时间</p>
                 <p className="mt-1 font-medium">{task.updatedAt}</p>
               </div>
+              <div className="text-sm">
+                <p className="text-[var(--muted-foreground)]">余额处理</p>
+                <p className="mt-1 font-medium">{task.balanceEffect}</p>
+              </div>
               <div className="flex items-start gap-2">
                 <Button variant="ghost">
                   <RotateCcw aria-hidden="true" size={16} />
                 </Button>
               </div>
+              {task.failureReason ? (
+                <p className="text-sm text-red-700 lg:col-span-5">{task.failureReason}</p>
+              ) : null}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <div className="flex gap-3">
+          <ShieldCheck className="mt-0.5 text-[var(--primary)]" size={20} aria-hidden="true" />
+          <div className="w-full">
+            <h2 className="font-semibold">阶段 6 AI 准备层</h2>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+              当前仍使用本地 Fake Provider，不调用真实 AI。章节已拆成 {stageSixAiPrep.segmentCount} 个
+              segment，提示词样例绑定 {stageSixAiPrep.promptSegment}。
+            </p>
+            <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+              <div className="rounded-lg bg-[var(--background)] p-3">
+                <p className="text-[var(--muted-foreground)]">术语候选</p>
+                <p className="mt-1 font-medium">{stageSixAiPrep.topTerms.join("、")}</p>
+              </div>
+              <div className="rounded-lg bg-[var(--background)] p-3">
+                <p className="text-[var(--muted-foreground)]">质检状态</p>
+                <p className="mt-1 font-medium">
+                  {stageSixAiPrep.qualityStatus} · {stageSixAiPrep.qualityIssueCount} 个问题
+                </p>
+              </div>
+              <div className="rounded-lg bg-[var(--background)] p-3">
+                <p className="text-[var(--muted-foreground)]">Provider</p>
+                <p className="mt-1 font-medium">{stageSixAiPrep.providerStatus}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

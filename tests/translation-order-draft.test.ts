@@ -33,7 +33,7 @@ test("builds a translation order draft with task drafts and hold preview", () =>
   assert.equal(draft.translation.targetLanguage, "英文");
   assert.equal(draft.pricing.totalStandardUnits, 6);
   assert.equal(draft.pricing.freeUnitsApplied, 3);
-  assert.equal(draft.pricing.payableCostCents, 30);
+  assert.equal(draft.pricing.payableCostCents, 150);
   assert.deepEqual(
     draft.tasks.map((task) => ({
       chapterId: task.chapterId,
@@ -43,12 +43,12 @@ test("builds a translation order draft with task drafts and hold preview", () =>
     [
       { chapterId: "chapter-1", status: "queued", frozenCents: 0 },
       { chapterId: "chapter-2", status: "queued", frozenCents: 0 },
-      { chapterId: "chapter-3", status: "queued", frozenCents: 30 },
+      { chapterId: "chapter-3", status: "queued", frozenCents: 150 },
     ],
   );
   assert.deepEqual(draft.accountAfterHold, {
     balanceCents: 1230,
-    frozenCents: 70,
+    frozenCents: 190,
     freeChaptersLeft: 0,
   });
 });
@@ -110,7 +110,7 @@ test("rejects payable drafts when available balance is not enough", () => {
   assert.equal(draft.ok, false);
   assert.equal(draft.reason, "insufficient-balance");
   assert.equal(draft.availableCents, 10);
-  assert.equal(draft.requiredCents, 60);
+  assert.equal(draft.requiredCents, 300);
 });
 
 test("allows free quota to cover the full draft without freezing balance", () => {

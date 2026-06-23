@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Globe2, Languages, Wallet } from "lucide-react";
+import { Languages, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import type { MockAccountInput } from "@/lib/account/mock-account-summary";
@@ -9,7 +9,6 @@ import { formatYuanFromCents } from "@/lib/account/mock-account-summary";
 import type { TranslationStatus } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 import {
-  DEFAULT_WEB_LOOKUP_ENABLED,
   getDefaultTargetLanguage,
   getSupportedTargetLanguages,
 } from "@/lib/translation/translation-options";
@@ -41,7 +40,6 @@ export function TranslationCreatePanel({
 }: TranslationCreatePanelProps) {
   const targetLanguages = getSupportedTargetLanguages();
   const [targetLanguage, setTargetLanguage] = useState(getDefaultTargetLanguage(sourceLanguage));
-  const [webLookupEnabled, setWebLookupEnabled] = useState(DEFAULT_WEB_LOOKUP_ENABLED);
   const [selectedChapterIds, setSelectedChapterIds] = useState(
     chapters.filter((chapter) => chapter.status !== "skipped").map((chapter) => chapter.id),
   );
@@ -69,7 +67,7 @@ export function TranslationCreatePanel({
     originalBookId,
     sourceLanguage,
     targetLanguage,
-    webLookupEnabled,
+    webLookupEnabled: false,
     account,
     chapters: pricingChapters,
     selectedChapterIds,
@@ -123,27 +121,6 @@ export function TranslationCreatePanel({
               </label>
             ))}
           </div>
-        </div>
-
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <Globe2 aria-hidden="true" size={19} className="text-[var(--primary)]" />
-            <h2 className="font-semibold">术语联网查证</h2>
-          </div>
-          <label className="flex items-start gap-3 rounded-lg bg-[var(--surface-2)] p-4">
-            <input
-              className="mt-1"
-              type="checkbox"
-              checked={webLookupEnabled}
-              onChange={(event) => setWebLookupEnabled(event.target.checked)}
-            />
-            <span>
-              <span className="block font-medium">{webLookupEnabled ? "已开启" : "已关闭"}</span>
-              <span className="mt-1 block text-sm leading-6 text-[var(--muted-foreground)]">
-                只查证书名、人名、地名、组织名、技能名和术语关键词，不搜索整章或大段正文。
-              </span>
-            </span>
-          </label>
         </div>
 
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
