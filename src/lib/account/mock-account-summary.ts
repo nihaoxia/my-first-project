@@ -11,7 +11,7 @@ export type MockAccountSummary = {
   freeChaptersLeft: number;
 };
 
-const defaultMockAccount: MockAccountInput = {
+export const defaultMockAccount: MockAccountInput = {
   balanceCents: 1230,
   frozenCents: 40,
   freeChaptersLeft: 12,

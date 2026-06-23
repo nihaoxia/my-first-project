@@ -261,10 +261,50 @@
   - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
   - `.env`、`.env.local`、`.env.production` 无差异。
   - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+- 阶段 4 已启动，创建译本创建、费用估算和余额冻结实施计划 `docs/superpowers/plans/2026-06-23-translation-cost-hold.md`。
+- `docs/ROADMAP.md` 将阶段 4 标记为进行中，并补充费用估算、免费额度抵扣、余额冻结预检和任务草稿等本阶段计划内容。
+- 阶段 4 完成费用估算纯逻辑：
+  - 新增 `src/lib/translation/translation-pricing.ts`，按源语言计算标准章数，并按 `0.1 元 / 标准章` 估算费用。
+  - 中文、日文、韩文按 3000 字为 1 个标准章；其他语言按 6000 字为 1 个标准章；非空短章节至少按 1 个标准章计算。
+  - 选择章节汇总会计算总字数、标准章数、免费额度抵扣、应付标准章和预计应冻结金额。
+  - 新增 `tests/translation-pricing.test.ts`，覆盖中英文标准章、不足一章、免费额度抵扣和无章节选择。
+- 阶段 4 开始接入译本创建页实时估算：
+  - `src/lib/account/mock-account-summary.ts` 导出开发期默认账户输入，避免页面解析展示字符串。
+  - 新增 `src/components/translation/translation-create-panel.tsx`，译本创建页支持选择目标语言、联网查证开关和章节。
+  - `/books/demo-book/translate` 改为使用新的创建面板，费用卡片会随章节选择实时更新，并展示免费额度抵扣、预计冻结、当前可用余额、冻结后可用余额和翻译后预计余额。
+  - 页面复用开发期余额冻结判断，未选择章节或余额不足时禁用生成译本草稿按钮并显示提示。
+- 本轮阶段 4 增量验证通过：
+  - `pnpm test`：76 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 4 继续补齐译本创建边界：
+  - 新增 `src/lib/translation/translation-options.ts`，集中维护第一版目标语言列表、默认目标语言、默认联网查证开关和默认翻译风格。
+  - 新增 `tests/translation-options.test.ts`，覆盖支持语言列表、默认目标语言、目标语言校验和第一版翻译默认项。
+  - 新增 `src/lib/translation/translation-order-draft.ts`，从用户、原版书、目标语言、章节选择、账户余额和费用估算生成译本草稿、章节任务草稿、余额冻结预检和冻结后的账户状态。
+  - 新增 `tests/translation-order-draft.test.ts`，覆盖无章节、目标语言不支持、余额足够、余额不足和免费额度覆盖全部费用。
+  - 译本创建页改为复用统一目标语言选项和订单草稿逻辑；点击生成译本草稿时会基于同一份草稿结果展示待创建章节任务数。
+  - 免费标准章额度按已选章节顺序从前往后抵扣，后续任务冻结金额按抵扣后的应付标准章计算。
+- 本轮阶段 4 译本草稿增量验证通过：
+  - `pnpm test`：86 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 4 本地范围收口：
+  - 新增 `src/lib/project/stage-four-readiness.ts`，用纯逻辑清单记录阶段 4 本地完成项和外部依赖阻塞项。
+  - 新增 `tests/stage-four-readiness.test.ts`，覆盖阶段 4 本地完成度，以及真实远程数据库写入、后台任务队列、真实 AI 翻译和真实支付等后续项。
+  - `docs/ROADMAP.md` 将阶段 4 标记为“已完成（本地范围）”，明确译本创建草稿、翻译任务草稿、费用估算、免费额度抵扣和余额冻结预检已完成。
+  - `docs/superpowers/plans/2026-06-23-translation-cost-hold.md` 将任务 5“阶段 4 本地范围收口”标记为已完成，并补充本地阶段 4 收口说明。
+- 本轮阶段 4 收口验证通过：
+  - `pnpm test`：88 项通过，0 项失败。运行时仍存在 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint`
+  - `pnpm build`，构建输出包含 `Proxy (Middleware)`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
 
 ### 后续待办
 
-- 阶段 4：译本创建、费用估算和余额冻结。
+- 阶段 5：后台任务队列和模拟翻译，先跑通任务状态流转和模拟译文生成。
 - 真实对象存储上传和 Supabase Storage 生产配置后续接入。
 - 后续如要支持真实 EPUB 解包，需要先评估并确认依赖方案；安装依赖前需单独请求用户权限。
 - 原版书和章节写入真实远程数据库，需要等真实 Supabase/Prisma 连接配置就绪后接入。
