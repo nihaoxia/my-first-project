@@ -23,6 +23,7 @@ export const config = {
     "/translations/:path*",
     "/reader/:path*",
     "/study/:path*",
+    "/me/:path*",
     "/admin/:path*",
   ],
 };

@@ -35,6 +35,14 @@ test("redirects guests from protected pages and preserves the target path", () =
   });
 });
 
+test("protects the my page for signed-in users only", () => {
+  assert.deepEqual(getRouteAccessDecision("/me", null), {
+    type: "redirect",
+    destination: "/login?next=%2Fme",
+  });
+  assert.deepEqual(getRouteAccessDecision("/me", userSession), { type: "allow" });
+});
+
 test("redirects guests from admin pages to login", () => {
   assert.deepEqual(getRouteAccessDecision("/admin/users", null), {
     type: "redirect",

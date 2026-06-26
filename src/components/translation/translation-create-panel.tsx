@@ -72,10 +72,6 @@ export function TranslationCreatePanel({
     chapters: pricingChapters,
     selectedChapterIds,
   });
-  const availableCents = Math.max(0, account.balanceCents - account.frozenCents);
-  const availableAfterHoldCents = orderDraft.ok
-    ? Math.max(0, orderDraft.accountAfterHold.balanceCents - orderDraft.accountAfterHold.frozenCents)
-    : availableCents;
   const balanceAfterChargeCents = Math.max(0, account.balanceCents - costSummary.payableCostCents);
   const canCreateDraft = orderDraft.ok;
 
@@ -185,25 +181,21 @@ export function TranslationCreatePanel({
               <dd className="font-medium">{costSummary.freeUnitsApplied} 章</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-[var(--muted-foreground)]">预计冻结</dt>
+              <dt className="text-[var(--muted-foreground)]">预计费用</dt>
               <dd className="font-medium">￥ {formatYuanFromCents(costSummary.payableCostCents)}</dd>
             </div>
             <div className="flex justify-between">
-              <dt className="text-[var(--muted-foreground)]">当前可用余额</dt>
-              <dd className="font-medium">￥ {formatYuanFromCents(availableCents)}</dd>
+              <dt className="text-[var(--muted-foreground)]">账户余额</dt>
+              <dd className="font-medium">￥ {formatYuanFromCents(account.balanceCents)}</dd>
             </div>
             <div className="flex justify-between border-t border-[var(--border)] pt-3">
-              <dt className="text-[var(--muted-foreground)]">冻结后可用</dt>
-              <dd className="font-medium">￥ {formatYuanFromCents(availableAfterHoldCents)}</dd>
-            </div>
-            <div className="flex justify-between">
               <dt className="text-[var(--muted-foreground)]">翻译后预计余额</dt>
               <dd className="font-medium">￥ {formatYuanFromCents(balanceAfterChargeCents)}</dd>
             </div>
           </dl>
           {!orderDraft.ok && orderDraft.reason === "insufficient-balance" ? (
             <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-              可用余额不足，无法创建本次翻译队列。
+              余额不足，无法创建本次翻译队列。
             </p>
           ) : null}
           {!orderDraft.ok && orderDraft.reason === "no-selected-chapters" ? (

@@ -1,4 +1,4 @@
-export type UploadFileFormat = "TXT" | "EPUB";
+export type UploadFileFormat = "TXT" | "EPUB" | "MOBI" | "PDF";
 
 export type UploadFileCandidate = {
   name: string;
@@ -19,6 +19,8 @@ export const uploadFilePolicy = {
   supportedFormats: [
     { label: "TXT", extension: ".txt" },
     { label: "EPUB", extension: ".epub" },
+    { label: "MOBI", extension: ".mobi" },
+    { label: "PDF", extension: ".pdf" },
   ] as const,
   maxSizeBytes: 20 * 1024 * 1024,
 };
@@ -32,6 +34,14 @@ export function detectUploadFileFormat(fileName: string): UploadFileFormat | nul
 
   if (normalized.endsWith(".epub")) {
     return "EPUB";
+  }
+
+  if (normalized.endsWith(".mobi")) {
+    return "MOBI";
+  }
+
+  if (normalized.endsWith(".pdf")) {
+    return "PDF";
   }
 
   return null;

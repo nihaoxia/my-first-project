@@ -27,7 +27,6 @@ test("builds a normal user profile from a mock session", () => {
       roleLabel: "普通用户",
       isAdmin: false,
       balanceYuan: "12.30",
-      frozenYuan: "0.40",
       freeChaptersLeft: 5,
     },
   );

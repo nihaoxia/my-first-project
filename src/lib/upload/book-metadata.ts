@@ -1,4 +1,4 @@
-type UploadFileFormat = "TXT" | "EPUB";
+type UploadFileFormat = "TXT" | "EPUB" | "MOBI" | "PDF";
 
 export type InferredBookMetadata = {
   title: string;
@@ -70,7 +70,7 @@ function normalizeMetadataStem(stem: string) {
 }
 
 function removeSupportedExtension(fileName: string, format: UploadFileFormat) {
-  const extension = format === "TXT" ? ".txt" : ".epub";
+  const extension = `.${format.toLowerCase()}`;
 
   if (fileName.toLowerCase().endsWith(extension)) {
     return fileName.slice(0, -extension.length);
@@ -88,6 +88,14 @@ function detectMetadataFileFormat(fileName: string): UploadFileFormat | null {
 
   if (normalized.endsWith(".epub")) {
     return "EPUB";
+  }
+
+  if (normalized.endsWith(".mobi")) {
+    return "MOBI";
+  }
+
+  if (normalized.endsWith(".pdf")) {
+    return "PDF";
   }
 
   return null;

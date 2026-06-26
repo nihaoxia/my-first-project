@@ -1,4 +1,4 @@
-import { AlertTriangle, ShieldCheck } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { LocalUploadPanel } from "@/components/upload/local-upload-panel";
 import { inferBookMetadataFromFileName } from "@/lib/upload/book-metadata";
@@ -21,7 +21,7 @@ const sampleEpubDraft = buildUploadDraft({
 });
 
 const steps = [
-  "识别 TXT/EPUB 文件格式",
+  "识别 TXT/EPUB/MOBI/PDF 文件格式",
   "尝试识别书名、作者和原始语言",
   "自动拆章并标记异常章节",
   "进入章节预览，确认后保存原版书",
@@ -34,24 +34,12 @@ export default function UploadPage() {
         <section>
           <h1 className="text-3xl font-semibold">上传小说</h1>
           <p className="mt-2 max-w-2xl text-[var(--muted-foreground)]">
-            第一版支持 {supportedFileFormats}，开发期单文件上限 {maxUploadSize}。上传后不会公开分享，只进入你的私人书架。
+            支持 {supportedFileFormats}，单文件上限 {maxUploadSize}。
           </p>
 
           <div className="mt-8">
             <LocalUploadPanel />
           </div>
-
-          <section className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-            <div className="flex gap-3">
-              <ShieldCheck className="mt-0.5 text-[var(--primary)]" size={20} aria-hidden="true" />
-              <div>
-                <h2 className="font-semibold">版权与隐私提示</h2>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  请仅上传你有权处理的文本。Stray Pages 不提供小说资源搜索、公开书库或译本传播服务。
-                </p>
-              </div>
-            </div>
-          </section>
         </section>
 
         <aside className="space-y-4">
@@ -75,7 +63,7 @@ export default function UploadPage() {
               <div>
                 <h2 className="font-semibold">暂不支持</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  PDF、DOCX、图片 OCR 和扫描件不在第一版范围内。
+                  DOCX、图片 OCR 和扫描件不在第一版范围内。
                 </p>
               </div>
             </div>
@@ -114,7 +102,7 @@ export default function UploadPage() {
 
           {sampleTxtDraft.ok ? (
             <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-              <h2 className="font-semibold">本地解析草稿</h2>
+              <h2 className="font-semibold">拆章结果</h2>
               <dl className="mt-3 space-y-2 text-sm">
                 <div className="flex justify-between gap-4">
                   <dt className="text-[var(--muted-foreground)]">状态</dt>
@@ -136,9 +124,9 @@ export default function UploadPage() {
 
           {sampleEpubDraft.ok ? (
             <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-              <h2 className="font-semibold">EPUB 处理状态</h2>
+              <h2 className="font-semibold">非 TXT 处理状态</h2>
               <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                EPUB 已进入上传草稿边界，当前状态为“待 EPUB 解析器”。后续如接入真实解包依赖，会从这一层继续扩展。
+                EPUB、MOBI 和 PDF 文件会先进入待处理状态，确认后再继续生成章节。
               </p>
             </section>
           ) : null}

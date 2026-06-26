@@ -52,11 +52,11 @@ test("rejects unsupported files before reading content", async () => {
   let readCount = 0;
 
   const draft = await buildLocalUploadDraftFromFile({
-    name: "scan.pdf",
+    name: "scan.docx",
     size: 1024,
     text: async () => {
       readCount += 1;
-      return "pdf";
+      return "docx";
     },
   });
 

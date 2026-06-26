@@ -33,16 +33,16 @@ export function buildMockReaderChapter(
 
 function buildMockParagraphTranslation(paragraph: string) {
   if (paragraph.includes("雾") || paragraph.toLowerCase().includes("mist")) {
-    return `[Mock English] The mist-like border scene is rendered from: ${paragraph}`;
+    return "The mist moved like a sleeping gray cloth, slowly covering the border.";
   }
 
   if (paragraph.includes("灯") || paragraph.toLowerCase().includes("lamp")) {
-    return `[Mock English] The lamp-lit response is rendered from: ${paragraph}`;
+    return "He did not answer; he only raised the lamp higher.";
   }
 
   if (paragraph.includes("桥") || paragraph.toLowerCase().includes("bridge")) {
-    return `[Mock English] The bridge scene is rendered from: ${paragraph}`;
+    return "The black bridge blurred in the distance.";
   }
 
-  return `[Mock English] A clear literary translation is rendered from: ${paragraph}`;
+  return "A clear literary translation is ready for this paragraph.";
 }

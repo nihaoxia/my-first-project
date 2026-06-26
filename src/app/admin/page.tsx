@@ -1,4 +1,4 @@
-import { Ban, Database, Download, ListChecks, Wallet } from "lucide-react";
+import { Ban, Database, Download, ListChecks, ShieldCheck, Wallet } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -6,9 +6,18 @@ import {
   adminMetrics,
   balanceRecords,
   failedTasks,
+  stageElevenAdminAuditRecords,
+  stageElevenAdminAuditSummary,
+  stageElevenDataRetentionPolicies,
+  stageElevenDataRetentionSummary,
   stageEightAdminSummary,
   stageFiveQueueMonitor,
+  stageNineLaunchChecklist,
+  stageNineRateLimitPolicies,
   stageSixAiPrep,
+  stageTenProductionPreflight,
+  stageTenProductionPreflightItems,
+  stageTenProductionRolloutSteps,
   translationCostMonitor,
 } from "@/lib/mock-data";
 
@@ -23,11 +32,11 @@ export default function AdminPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="secondary">
+          <Button type="button" variant="secondary" disabled>
             <Wallet aria-hidden="true" size={17} />
             手动加余额
           </Button>
-          <Button variant="secondary">
+          <Button type="button" variant="secondary" disabled>
             <Ban aria-hidden="true" size={17} />
             封禁账号
           </Button>
@@ -121,6 +130,146 @@ export default function AdminPage() {
                 >
                   <p className="font-medium">{file.format}</p>
                   <p className="mt-1 break-all text-[var(--muted-foreground)]">{file.fileName}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <ListChecks aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">上线准备</h2>
+            </div>
+            <div className="space-y-2 text-sm">
+              {stageNineLaunchChecklist.localItems.map((item) => (
+                <p key={item.label} className="rounded-lg bg-[var(--surface-2)] px-3 py-2">
+                  {item.label}
+                </p>
+              ))}
+            </div>
+            <div className="mt-4 border-t border-[var(--border)] pt-4">
+              <p className="text-sm font-medium">后续阻塞项</p>
+              <ul className="mt-3 space-y-2 text-sm text-[var(--muted-foreground)]">
+                {stageNineLaunchChecklist.externalBlockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <Database aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">生产体检</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              {stageTenProductionPreflightItems.map((item) => (
+                <div key={item.label} className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">{item.label}</dt>
+                  <dd className="font-medium">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="mt-4 space-y-2 border-t border-[var(--border)] pt-4 text-sm">
+              {stageTenProductionPreflight.missingKeys.slice(0, 3).map((key) => (
+                <p key={key} className="rounded-lg bg-[var(--surface-2)] px-3 py-2">
+                  待配置：{key}
+                </p>
+              ))}
+              {stageTenProductionPreflight.risks.slice(0, 2).map((risk) => (
+                <p key={risk} className="rounded-lg bg-[var(--surface-2)] px-3 py-2">
+                  {risk}
+                </p>
+              ))}
+            </div>
+            <div className="mt-4 border-t border-[var(--border)] pt-4">
+              <p className="text-sm font-medium">接入顺序</p>
+              <ol className="mt-3 space-y-2 text-sm text-[var(--muted-foreground)]">
+                {stageTenProductionRolloutSteps.slice(0, 4).map((step) => (
+                  <li key={step.label}>{step.label}</li>
+                ))}
+              </ol>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">限频策略</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              {stageNineRateLimitPolicies.map((policy) => (
+                <div key={policy.action} className="flex justify-between gap-4">
+                  <dt className="text-[var(--muted-foreground)]">{policy.actionLabel}</dt>
+                  <dd className="font-medium">
+                    {policy.windowLabel} {policy.maxCount} 次
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <ListChecks aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">操作审计</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">审计记录</dt>
+                <dd className="font-medium">{stageElevenAdminAuditSummary.totalRecords}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">高风险操作</dt>
+                <dd className="font-medium">{stageElevenAdminAuditSummary.highRiskRecords}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">缺少原因</dt>
+                <dd className="font-medium">{stageElevenAdminAuditSummary.missingReasonRecords}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">最近操作</dt>
+                <dd className="font-medium">{stageElevenAdminAuditSummary.latestRecordLabel}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 space-y-2 border-t border-[var(--border)] pt-4 text-sm">
+              {stageElevenAdminAuditRecords.slice(0, 2).map((record) => (
+                <div key={`${record.action}-${record.createdAt}`} className="rounded-lg bg-[var(--surface-2)] p-3">
+                  <p className="font-medium">{record.actionLabel}</p>
+                  <p className="mt-1 text-[var(--muted-foreground)]">{record.summary}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+            <div className="mb-4 flex items-center gap-2">
+              <ShieldCheck aria-hidden="true" size={18} className="text-[var(--primary)]" />
+              <h2 className="font-semibold">数据安全</h2>
+            </div>
+            <dl className="space-y-3 text-sm">
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">保留策略</dt>
+                <dd className="font-medium">{stageElevenDataRetentionSummary.policyCount}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">需前台提示</dt>
+                <dd className="font-medium">{stageElevenDataRetentionSummary.noticeRequiredCount}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">最长保留</dt>
+                <dd className="font-medium">{stageElevenDataRetentionSummary.longestRetentionLabel}</dd>
+              </div>
+              <div className="flex justify-between gap-4">
+                <dt className="text-[var(--muted-foreground)]">最短保留</dt>
+                <dd className="font-medium">{stageElevenDataRetentionSummary.shortestRetentionLabel}</dd>
+              </div>
+            </dl>
+            <div className="mt-4 space-y-2 border-t border-[var(--border)] pt-4 text-sm">
+              {stageElevenDataRetentionPolicies.slice(0, 3).map((policy) => (
+                <div key={policy.key} className="flex justify-between gap-4 rounded-lg bg-[var(--surface-2)] px-3 py-2">
+                  <span>{policy.label}</span>
+                  <span className="font-medium">{policy.retentionDays} 天</span>
                 </div>
               ))}
             </div>

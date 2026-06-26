@@ -8,13 +8,15 @@ import {
   validateUploadFileCandidate,
 } from "../src/lib/upload/file-policy.ts";
 
-test("detects supported TXT and EPUB files case-insensitively", () => {
+test("detects supported upload files case-insensitively", () => {
   assert.equal(detectUploadFileFormat("Novel.TXT"), "TXT");
   assert.equal(detectUploadFileFormat("book.epub"), "EPUB");
+  assert.equal(detectUploadFileFormat("archive.MOBI"), "MOBI");
+  assert.equal(detectUploadFileFormat("scan.PDF"), "PDF");
 });
 
 test("rejects unsupported upload formats", () => {
-  assert.deepEqual(validateUploadFileCandidate({ name: "notes.pdf", size: 1024 }), {
+  assert.deepEqual(validateUploadFileCandidate({ name: "notes.docx", size: 1024 }), {
     ok: false,
     reason: "unsupported-format",
   });
@@ -44,6 +46,14 @@ test("accepts supported files inside the development upload limit", () => {
   assert.deepEqual(validateUploadFileCandidate({ name: "story.txt", size: 4096 }), {
     ok: true,
     format: "TXT",
+  });
+  assert.deepEqual(validateUploadFileCandidate({ name: "story.mobi", size: 4096 }), {
+    ok: true,
+    format: "MOBI",
+  });
+  assert.deepEqual(validateUploadFileCandidate({ name: "story.pdf", size: 4096 }), {
+    ok: true,
+    format: "PDF",
   });
 });
 

@@ -37,8 +37,20 @@ test("infers title author and format from supported upload file name", () => {
     format: "EPUB",
     originalFileName: "迷雾边境 - 林间客.epub",
   });
+  assert.deepEqual(inferBookMetadataFromFileName("Silent Archive by M. Vale.mobi"), {
+    title: "Silent Archive",
+    author: "M. Vale",
+    format: "MOBI",
+    originalFileName: "Silent Archive by M. Vale.mobi",
+  });
+  assert.deepEqual(inferBookMetadataFromFileName("学习资料.pdf"), {
+    title: "学习资料",
+    author: null,
+    format: "PDF",
+    originalFileName: "学习资料.pdf",
+  });
 });
 
 test("returns null for unsupported upload file names", () => {
-  assert.equal(inferBookMetadataFromFileName("scan.pdf"), null);
+  assert.equal(inferBookMetadataFromFileName("scan.docx"), null);
 });

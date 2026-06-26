@@ -126,7 +126,16 @@ export function filterVocabularyItems(
     return (
       matchesBook(item.bookId, filter.bookId) &&
       matchesQuery(
-        [item.term, item.explanation, item.contextualMean, item.sourceSentence, item.note],
+        [
+          item.term,
+          item.explanation,
+          item.contextualMean,
+          item.sourceSentence,
+          item.sourceLabel,
+          item.bookTitle,
+          item.chapterTitle,
+          item.note,
+        ],
         filter.query,
       ) &&
       !item.deleted
@@ -142,7 +151,16 @@ export function filterSentenceItems(
     return (
       matchesBook(item.bookId, filter.bookId) &&
       matchesQuery(
-        [item.originalText, item.translatedText, item.explanation, item.note, inferSentenceCue(item)],
+        [
+          item.originalText,
+          item.translatedText,
+          item.explanation,
+          item.sourceLabel,
+          item.bookTitle,
+          item.chapterTitle,
+          item.note,
+          inferSentenceCue(item),
+        ],
         filter.query,
       ) &&
       !item.deleted
@@ -164,6 +182,14 @@ export function previewStudyItemDeletion(input: {
         ? `“${input.label}”将从词汇本移除。`
         : `“${input.label}”将从句子本移除。`,
   };
+}
+
+export function deleteVocabularyItem(items: VocabularyStudyItem[], itemId: string) {
+  return items.filter((item) => item.id !== itemId);
+}
+
+export function deleteSentenceItem(items: SentenceStudyItem[], itemId: string) {
+  return items.filter((item) => item.id !== itemId);
 }
 
 function buildSourceLabel(input: Pick<StudySourceInput, "bookTitle" | "chapterTitle">) {

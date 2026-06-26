@@ -3,15 +3,21 @@
 import { FileText, Loader2, UploadCloud } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { routes } from "@/lib/routes";
+import { routeBuilders } from "@/lib/routes";
 import { formatBytes, uploadFilePolicy } from "@/lib/upload/file-policy";
 import { buildLocalUploadDraftFromFile, type LocalUploadDraftResult } from "@/lib/upload/local-upload-draft";
+import {
+  isStoredLocalUploadDraft,
+  localUploadBookId,
+  localUploadDraftStorageKey,
+} from "@/lib/upload/local-upload-storage";
+import { canContinueToChapterPreview } from "@/lib/upload/upload-draft";
 
 type LocalUploadDraftFailureReason = Extract<LocalUploadDraftResult, { ok: false }>["reason"];
 
 const uploadErrorLabels: Record<LocalUploadDraftFailureReason, string> = {
   "empty-name": "文件名为空，请重新选择文件。",
-  "unsupported-format": "暂不支持这个格式，请选择 TXT 或 EPUB 文件。",
+  "unsupported-format": "暂不支持这个格式，请选择 TXT、EPUB、MOBI 或 PDF 文件。",
   "empty-file": "文件内容为空，请检查后重新选择。",
   "file-too-large": `文件超过 ${formatBytes(uploadFilePolicy.maxSizeBytes)}，请先拆分或压缩内容。`,
   "file-read-failed": "浏览器读取 TXT 内容失败，请重新选择文件。",
@@ -19,8 +25,9 @@ const uploadErrorLabels: Record<LocalUploadDraftFailureReason, string> = {
 
 const parseStatusLabels = {
   "needs-text-content": "等待读取文本",
-  "needs-epub-parser": "待 EPUB 解析器",
-  parsed: "已完成本地拆章",
+  "needs-epub-parser": "EPUB 待处理",
+  "needs-file-parser": "文件待处理",
+  parsed: "已完成拆章",
 };
 
 export function LocalUploadPanel() {
@@ -40,7 +47,13 @@ export function LocalUploadPanel() {
     setIsReading(true);
 
     try {
-      setDraft(await buildLocalUploadDraftFromFile(file));
+      const nextDraft = await buildLocalUploadDraftFromFile(file);
+
+      setDraft(nextDraft);
+
+      if (isStoredLocalUploadDraft(nextDraft)) {
+        window.localStorage.setItem(localUploadDraftStorageKey, JSON.stringify(nextDraft));
+      }
     } finally {
       setIsReading(false);
     }
@@ -52,7 +65,7 @@ export function LocalUploadPanel() {
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept=".txt,.epub,text/plain,application/epub+zip"
+        accept=".txt,.epub,.mobi,.pdf,text/plain,application/epub+zip,application/pdf"
         onChange={handleFileChange}
       />
 
@@ -61,16 +74,22 @@ export function LocalUploadPanel() {
           <div className="flex size-12 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--primary)]">
             <UploadCloud aria-hidden="true" size={24} />
           </div>
-          <h2 className="mt-5 text-xl font-semibold">选择 TXT 或 EPUB 文件</h2>
+          <h2 className="mt-5 text-xl font-semibold">选择 TXT、EPUB、MOBI 或 PDF 文件</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-            TXT 会直接在浏览器本地读取并拆章，不会上传到服务器。EPUB 当前先进入待解析器状态，后续接入真实解包依赖后再展开。
+            TXT 会读取文本并拆章。EPUB、MOBI 和 PDF 会先保存为待处理状态。
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button type="button" variant="secondary" onClick={() => inputRef.current?.click()} disabled={isReading}>
               {isReading ? <Loader2 aria-hidden="true" className="animate-spin" size={17} /> : <FileText aria-hidden="true" size={17} />}
               {isReading ? "读取中" : "选择文件"}
             </Button>
-            <Button href={routes.chapters}>查看章节预览</Button>
+            {canContinueToChapterPreview(draft) ? (
+              <Button href={routeBuilders.bookChapters(localUploadBookId)}>查看章节预览</Button>
+            ) : (
+              <Button type="button" disabled>
+                查看章节预览
+              </Button>
+            )}
           </div>
           {fileName ? <p className="mt-3 text-sm text-[var(--muted-foreground)]">当前文件：{fileName}</p> : null}
         </div>
@@ -133,7 +152,13 @@ function UploadDraftPreview({ draft, isReading }: { draft: LocalUploadDraftResul
 
       {draft.parseStatus === "needs-epub-parser" ? (
         <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-          EPUB 格式已通过边界校验。当前版本不会在浏览器里假装解包，后续会接入真实 EPUB 解析器。
+          EPUB 文件已识别。当前还不能拆章，接入解析能力后再继续生成章节。
+        </p>
+      ) : null}
+
+      {draft.parseStatus === "needs-file-parser" ? (
+        <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
+          {draft.format} 文件已识别。当前还不能拆章，接入解析能力后再继续生成章节。
         </p>
       ) : null}
 

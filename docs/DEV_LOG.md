@@ -418,9 +418,307 @@
   - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
   - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
   - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 9 已启动并完成本地范围，创建上线前本地整理实施计划 `docs/superpowers/plans/2026-06-23-launch-readiness-local.md`。
+- 阶段 9 完成本地上线准备层：
+  - 新增 `src/lib/launch/legal-notices.ts`，集中维护版权提示、隐私提示、公开体验版说明和私人使用边界。
+  - 新增 `src/lib/launch/rate-limit-policy.ts`，建立上传小说、创建译本、阅读助手提问和导出文件的本地限频策略数据形状。
+  - 新增 `src/lib/launch/launch-states.ts`，建立空书架、上传失败、译本排队、译本处理中等用户可读状态文案，以及后台上线准备清单。
+  - 新增 `src/lib/project/stage-nine-readiness.ts`，记录阶段 9 本地完成项和真实 Vercel、真实 Supabase、真实短信/支付/AI、截图级验收等后续阻塞项。
+  - `src/lib/mock-data.ts` 接入阶段 9 本地上线准备数据，统一生成首页、上传页、译本创建页和后台页展示数据。
+  - `src/app/page.tsx`、`src/app/upload/page.tsx` 和 `src/app/books/[bookId]/translate/page.tsx` 展示简单版权、隐私、公开体验和使用限制提示；普通用户侧仍不展示翻译点、token、模型、API、术语联网查证、术语本或后台成本概念。
+  - `src/app/admin/page.tsx` 新增“上线准备”和“限频策略”卡片，后台可查看本地完成项、后续阻塞项和限频摘要。
+  - `docs/ROADMAP.md` 将阶段 9 标记为“已完成（本地范围）”，并明确真实部署、生产数据库、真实外部服务和截图级视觉验收仍是后续接入项。
+  - `docs/superpowers/plans/2026-06-23-launch-readiness-local.md` 将阶段 9 任务清单标记为已完成。
+- 阶段 9 新增测试：
+  - `tests/launch-legal-notices.test.ts`
+  - `tests/launch-rate-limit-policy.test.ts`
+  - `tests/launch-states.test.ts`
+  - `tests/stage-nine-readiness.test.ts`
+- 本轮阶段 9 验证通过：
+  - `pnpm test`：150 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 10 已启动并完成本地范围，创建生产接入前本地体检实施计划 `docs/superpowers/plans/2026-06-24-production-preflight-local.md`。
+- 阶段 10 完成生产接入前本地体检层：
+  - 新增 `src/lib/launch/production-preflight.ts`，集中维护生产环境变量要求、占位值识别、HTTPS URL 检查、开发期 mock 登录关闭要求和生产接入顺序。
+  - 生产体检逻辑只接收调用方传入的键值对象，不直接读取 `process.env`，体检结果只输出缺失项、占位项和风险原因，不输出真实密钥值。
+  - 新增 `src/lib/project/stage-ten-readiness.ts`，记录阶段 10 本地完成项和真实 Vercel、真实 Supabase、真实短信/支付/AI、真实后台队列、截图级验收等后续阻塞项。
+  - `src/lib/mock-data.ts` 接入阶段 10 本地生产体检摘要，使用安全示例输入生成后台展示数据，不读取或提交真实 `.env`。
+  - `src/app/admin/page.tsx` 新增“生产接入体检”卡片，后台可查看必需项数量、已就绪数量、缺失项数量、风险数量和生产接入顺序。
+  - 普通用户页面不接入生产体检数据，仍不展示翻译点、token、模型、API、Provider、术语联网查证、术语本、生产环境变量或后台成本概念。
+  - `docs/ROADMAP.md` 新增阶段 10 并标记为“已完成（本地范围）”，明确真实部署、生产数据库、真实外部服务、真实队列和截图级验收仍是后续接入项。
+  - `docs/superpowers/plans/2026-06-24-production-preflight-local.md` 将阶段 10 任务清单标记为已完成。
+- 阶段 10 新增测试：
+  - `tests/production-preflight.test.ts`
+  - `tests/stage-ten-readiness.test.ts`
+- 本轮阶段 10 验证通过：
+  - `pnpm test`：156 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 11 已启动并完成本地范围，创建后台审计与数据安全本地准备实施计划 `docs/superpowers/plans/2026-06-24-admin-audit-data-safety-local.md`。
+- 阶段 11 完成后台审计与数据安全准备层：
+  - 新增 `src/lib/admin/admin-audit-policy.ts`，集中维护后台关键操作清单、原因要求、风险等级、审计记录构建和敏感值脱敏规则。
+  - 审计记录会对手机号、key、secret、token、数据库连接串等敏感信息做脱敏；目标 ID 和摘要中的手机号也会被脱敏。
+  - 新增 `src/lib/admin/data-retention-policy.ts`，建立上传原文、审计记录、导出文件和学习收藏的本地数据保留策略摘要。
+  - 新增 `src/lib/project/stage-eleven-readiness.ts`，记录阶段 11 本地完成项和真实审计表、真实管理员操作、真实删除/归档任务、真实数据库和对象存储等后续阻塞项。
+  - `src/lib/mock-data.ts` 接入阶段 11 本地审计记录、审计摘要和数据保留策略摘要，不读取或提交真实 `.env`，不写入真实数据库。
+  - `src/app/admin/page.tsx` 新增“操作审计”和“数据安全”卡片，后台可查看审计记录数量、高风险操作、缺少原因数量、最近操作和保留策略摘要。
+  - 普通用户页面不接入阶段 11 数据，仍不展示后台审计、数据保留周期、内部 key、真实数据库或后台操作细节。
+  - `docs/ROADMAP.md` 新增阶段 11 并标记为“已完成（本地范围）”，明确真实审计表写入、真实管理员操作、真实删除/归档任务和生产级数据生命周期仍是后续接入项。
+  - `docs/superpowers/plans/2026-06-24-admin-audit-data-safety-local.md` 将阶段 11 任务清单标记为已完成。
+- 阶段 11 新增测试：
+  - `tests/admin-audit-policy.test.ts`
+  - `tests/data-retention-policy.test.ts`
+  - `tests/stage-eleven-readiness.test.ts`
+- 本轮阶段 11 验证通过：
+  - `pnpm test`：164 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 已启动并完成本地范围，创建产品 UI 收口与个人中心本地计划 `docs/superpowers/plans/2026-06-24-product-ui-polish-local.md`。
+- 阶段 12 完成普通用户侧信息架构和界面打磨：
+  - 新增 `src/lib/account/my-page-summary.ts`，集中生成“我的”页可见的账户摘要、书架概览和收费规则文案；普通用户仍只看到人民币余额、免费标准章和简单任务信息。
+  - 新增 `/me` 页面，集中展示账户余额、冻结金额、免费标准章、最近翻译任务、书架概览、快捷入口和最近余额记录。
+  - `src/lib/routes.ts` 新增 `routes.me`，`src/lib/auth/access-policy.ts` 将 `/me` 纳入受保护路由。
+  - `src/components/app-shell.tsx` 新增“我的”导航入口，移除顶部栏中的余额/免费标准章展示；同时支持阅读器使用宽版页面容器。
+  - 首页和书架页移除账户余额、冻结金额和免费标准章卡片，改为展示原版书、译本、最近任务、进行中任务和需处理任务等产品状态。
+  - 阅读器页面改用宽版布局，缩窄目录栏和右侧工具栏，正文默认宽度从较保守的设置提升到更适合长文本阅读的范围，并将行高略收紧以显示更多内容。
+  - 根据实际预览反馈，重做阅读器为可交互阅读工作台：默认只展示第一次翻译后的学习语言正文；每段末尾提供“译”按钮，用户可自行展开或收起二次翻译；不再默认展示“译文 / 原文 / 对照”切换。
+  - 阅读器目录和 AI 阅读助手均支持隐藏与显示；正文选中文本后会带入右侧助手提问区域；阅读主题新增白天、护眼和黑夜三种切换。
+  - 删除首页、上传页和创建译本页中过重的版权、隐私、公开体验限制提示；上传页开发期、本地、解析器等技术口吻已改为普通用户可理解的处理状态。
+  - 普通用户任务页移除 `Provider`、提示词、分段等内部技术表达，改为“翻译准备”“专有名词”“检查状态”“处理范围”等用户可理解信息。
+  - 全局样式、按钮、指标卡片和多处普通用户页面完成一轮克制的产品 UI 打磨，统一卡片半径、交互状态、文字排版和背景层次。
+  - 普通用户页面扫描未命中翻译点、token、模型、API、Provider、术语联网查证、术语本、成本、审计、数据保留、生产配置等内部概念。
+  - `docs/ROADMAP.md` 新增阶段 12 并标记为“已完成（本地范围）”，明确截图级视觉验收、真实远程数据和真实余额流水仍是后续接入项。
+- 阶段 12 新增/更新测试：
+  - 新增 `tests/my-page-summary.test.ts`
+  - 更新 `tests/auth-access-policy.test.ts`，覆盖 `/me` 访问保护。
+  - 更新 `tests/reader-view.test.ts`，覆盖阅读器更宽的内容宽度范围。
+- 本轮阶段 12 验证通过：
+  - `pnpm test`：167 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`，并包含 `/me` 路由。
+  - 普通用户页面内部概念扫描无命中。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续根据阅读器预览反馈做修正：
+  - 阅读器移除顶部说明句和展开翻译时的“二次翻译”可见标题，避免普通阅读页面出现解释性提示。
+  - 阅读器主题切换改为写入全页 CSS 变量，白天、护眼和黑夜会同步影响页面背景、正文、侧栏、按钮和顶部应用壳颜色。
+  - 阅读器段落数据改为区分第一次翻译后的学习正文和按需查看的翻译文本；模拟英文译文不再把中文原文拼接在后面。
+  - 正文选中文本后新增浮动操作条，提供“翻译 / 词汇本 / 句子本”三个用户可见动作，并同步带入右侧 AI 阅读助手。
+  - 右侧 AI 阅读助手收敛为选中内容、快捷动作、问题输入和提问按钮，移除固定建议卡片。
+- 本轮阅读器反馈修正验证通过：
+  - `pnpm test`：168 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/reader` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中开发提示、模拟翻译前缀、二次翻译标题、内部概念或真实环境变量名。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续修正阅读器预览反馈：
+  - 阅读器正文宽度上限从 1120 放大到 1480；目录和助手都隐藏时，正文使用更宽的阅读区域，减少大屏左右空白。
+  - 默认阅读设置改为更宽的正文宽度，`stageSevenReaderView` 示例宽度同步提升。
+  - 新增 `src/lib/reader/selection-lookup-card.ts`，为选中文本生成用户可见的小卡片数据：音标、解释、读音按钮文案和加入词汇本状态。
+  - 选中文本后点击“翻译”不再送到右侧 AI 助手，而是在选区附近弹出解释小卡片；卡片支持播放读音入口和“加入词汇本 / 已加入词汇本”状态切换。
+  - 新增 `tests/selection-lookup-card.test.ts`，覆盖单词和短语选区卡片。
+- 本轮阅读器区域和选区卡片修正验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/reader` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中开发提示、模拟翻译前缀、二次翻译标题、内部概念或真实环境变量名。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续做阅读器视觉打磨：
+  - 宽版应用壳放开阅读器主区域上限，避免阅读器被外层 `max-w-[1500px]` 限制。
+  - 阅读器新增独立的阅读纸面、栏位、强调色和主题变量，白天、护眼、黑夜主题下的正文、侧栏、工具条和选区卡片层次更统一。
+  - 阅读器顶部增加章节进度条和章节位置，主题切换工具条视觉收敛为阅读器控制区。
+  - 正文区域改为更像阅读纸面的连续阅读面，段落 hover、每段“译”按钮、展开翻译块和选区浮动操作统一成同一套样式。
+  - 目录栏和 AI 阅读助手加入顶部边界和更稳定的面板层次，减少默认卡片感。
+- 本轮阅读器视觉打磨验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/reader` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中开发提示、模拟翻译前缀、二次翻译标题、内部概念或真实环境变量名。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续做书架页视觉打磨：
+  - `/library` 从管理面板式列表改为小说软件式书架布局，顶部加入“书架 / 历史 / 收藏 / 圈子”、搜索、更多、阅读时长、列表/编辑和分类筛选入口。
+  - 书架主体改为响应式封面网格，包含最近在读、英语学习等集合封面，以及原文和译文书籍封面。
+  - 普通用户页面移除原有统计卡、任务摘要和大段说明，状态收敛为封面角标、阅读进度和上传入口。
+  - 保持用户侧概念简单，只展示文章、书架、阅读、翻译进度和上传入口，不展示后台成本、模型、token、API 或术语等内部概念。
+- 本轮书架页视觉打磨验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/library` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中内部概念、开发提示、真实环境变量名、模拟翻译前缀或二次翻译标题。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 根据书架页截图反馈继续修正：
+  - 删除书架页顶部“历史 / 收藏 / 圈子”等频道入口，避免当前版本出现未实现或不需要的分区。
+  - 书架筛选收敛为“上传 / 翻译”两个版本，并保留“语言：全部”入口用于后续按语言筛选。
+  - 移除书籍和分类封面右上角状态角标，不再展示“更新 / 学习 / 连载 / 原版 / 待读”等状态。
+  - 最后的加号卡从“上传新文章”改为“新增分类”，用于后续让用户添加书籍分类。
+- 本轮书架页反馈修正验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/library` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中内部概念、开发提示、真实环境变量名、模拟翻译前缀或二次翻译标题。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续修正阅读器选区体验：
+  - 阅读正文区域新增原生右键菜单拦截，用户选中文本时优先使用站内“翻译 / 词汇本 / 句子本”浮动菜单。
+  - 选中文本后在鼠标释放阶段阻止默认鼠标事件继续冒泡，尽量减少浏览器自带选区菜单抢占阅读体验。
+  - 保留浏览器原生文本选择能力，不改成不可选择文本，避免影响复制、键盘选择和可访问性。
+- 本轮阅读器选区体验修正验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/reader` 和 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续根据截图反馈修正学习页、书架页和阅读器：
+  - 新增 `src/components/study/study-library-header.tsx`，学习页顶部统一提供“词汇本 / 句子本 / 笔记本”切换、默认本选择和“新建本”入口。
+  - 词汇本和句子本页面接入统一学习页顶部；句子本定位为收藏阅读时喜欢的语句和段落。
+  - 新增 `/study/notes` 笔记本页面，展示默认笔记本、自写总结、可编辑标题和内容区域，为后续真实保存做本地 UI 准备。
+  - 书架页移除内容区右上角“上传文章”按钮，上传入口只保留在全局导航和上传页流程中。
+  - 阅读器选中文本后的翻译解释卡支持点击卡片外区域关闭，保留卡片内按钮点击不关闭。
+- 本轮学习页、书架页和阅读器反馈修正验证通过：
+  - `pnpm test`：170 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/study/notes`、`/study/sentences`、`/study/vocabulary`、`/reader` 和 `Proxy (Middleware)`。
+  - 书架页扫描确认内容区不再出现“上传文章”。
+  - 普通用户页面扫描未命中内部概念、开发提示、真实环境变量名、模拟翻译前缀或二次翻译标题。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续根据“我的”页和导入格式反馈修正：
+  - “我的”页移除上传入口和快捷入口中的上传动作，只保留打开书架、继续阅读和学习资料，避免账户页重复出现上传按钮。
+  - 上传文件策略扩展为支持 TXT、EPUB、MOBI 和 PDF，并同步更新上传页、浏览器文件选择 `accept` 列表和不支持格式提示。
+  - MOBI 和 PDF 现在可以进入上传草稿边界，状态标记为“文件待处理”；当前本地仍不假装解析 MOBI/PDF 内容，后续接入真实解析依赖前需要单独确认方案和权限。
+  - 上传文件名元数据识别同步支持 `.mobi` 和 `.pdf`，可从文件名推断书名、作者和格式。
+- 本轮“我的”页和导入格式修正验证通过：
+  - `pnpm test`：171 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/me`、`/upload` 和 `Proxy (Middleware)`。
+  - “我的”页扫描确认不再出现上传入口。
+  - 上传页和上传组件扫描确认不再保留“仅 TXT 或 EPUB”或“PDF 不支持”的旧文案。
+  - 普通用户页面扫描未命中内部概念、开发提示、真实环境变量名、模拟翻译前缀或二次翻译标题。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续做严苛问题收口：
+  - `src/proxy.ts` 的受保护路由匹配补上 `/me/:path*`，避免“我的”页只在权限策略中声明但未进入代理匹配。
+  - 登录页接入开发期模拟登录开关；生产环境默认不启用模拟登录，未启用时不再显示固定验证码或管理员手机号提示。
+  - Prisma schema 与产品规则同步：`BookFormat` 增加 `MOBI`、`PDF`，`AccountBalance.freeChapters` 默认值改为 `5`。
+  - 上传草稿预览继续收紧：只有已成功拆章的 TXT 草稿可以进入章节预览，EPUB、MOBI、PDF 和本地读取失败状态都不会显示可继续入口。
+  - 新增动态路由构建器，书籍章节页、创建译本页和翻译任务页按 URL 参数读取对应演示数据；找不到对应 ID 时返回 404，不再无视参数展示第一条数据。
+  - 书架、学习页、后台和任务页中明显未接入的按钮改为禁用或移除，避免用户误以为未实现操作已经可用。
+  - 修复 `canContinueToChapterPreview` 类型边界，让本地上传读取失败状态也能安全进入判断逻辑，并明确返回不可继续预览。
+- 本轮严苛问题收口新增/更新测试：
+  - 新增 `tests/proxy-config.test.ts`，覆盖所有受保护顶层路由都进入 `src/proxy.ts` matcher。
+  - 新增 `tests/prisma-schema-consistency.test.ts`，覆盖 Prisma 上传格式和免费标准章默认值与产品规则一致。
+  - 新增 `tests/routes.test.ts`，覆盖动态书籍和翻译任务路由构建。
+  - 更新 `tests/auth-mock-policy.test.ts`、`tests/upload-draft.test.ts`，覆盖生产默认禁用模拟登录和本地读取失败不可继续预览。
+- 本轮严苛问题收口验证通过：
+  - `pnpm test`：178 项通过，0 项失败；运行时仍有 Node 对 TypeScript 测试文件模块类型的提示，不影响结果。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/me`、动态书籍/译本路由和 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - 普通用户页面扫描未命中翻译点、token、模型、API、Provider、术语联网查证、术语本、成本、审计、数据保留、生产配置或真实环境变量名。
+  - 当前仍有真实 Supabase/Auth/Storage、真实数据库读写、真实 EPUB/MOBI/PDF 解析、真实 AI、真实队列和真实支付等外部接入项，需等配置、依赖或联网权限后单独推进。
+- 阶段 12 继续根据产品取舍收口普通用户余额展示：
+  - 明确当前阶段暂不做手机端专项打磨，电脑端体验优先；手机端只保持基础可访问，不作为近期问题清单推进。
+  - 普通用户侧不再展示“冻结金额”“冻结后可用”“可用余额”等系统内部结算概念，避免用户混淆。
+  - “我的”页账户摘要移除冻结金额卡片，只展示账户余额、免费标准章和最近任务。
+  - 开发期用户资料对象移除 `frozenYuan` 字段，避免后续普通用户页面误用冻结金额。
+  - 创建译本页费用估算从“预计冻结 / 当前可用余额 / 冻结后可用”改为“预计费用 / 账户余额 / 翻译后预计余额”。
+  - 翻译任务页移除章节任务中的冻结金额列，失败和取消任务文案改为“未扣费”，扣费规则改为“翻译成功后按章节结算”。
+  - 内部余额冻结、返还和扣费纯逻辑仍保留在账户和队列模块中，只是不暴露给普通用户页面。
+- 本轮普通用户余额展示收口验证：
+  - `tests/my-page-summary.test.ts` 已覆盖“我的”页摘要不出现冻结、可用余额和内部概念。
+  - `tests/mock-user-profile.test.ts` 已覆盖开发期用户资料不再携带冻结金额展示字段。
+  - 普通用户入口扫描确认 `/me`、创建译本页、翻译任务页和应用壳不再出现冻结金额、冻结余额、预计冻结、冻结后可用、可用余额、已返还或返还等文案。
+- 阶段 12 继续收口本地验证噪音：
+  - `package.json` 增加 `"type": "module"`，让 Node 原生测试按 ES module 直接解析 `.ts` 测试文件，不再输出 `MODULE_TYPELESS_PACKAGE_JSON` 重解析警告。
+  - 新增 `.gitattributes`，统一文本文件以 LF 入库，并将常见图片、PDF、MOBI、EPUB 标记为二进制文件，避免 Windows 环境反复出现 LF/CRLF 提示。
+- 本轮本地验证噪音收口验证：
+  - `pnpm test`：178 项通过，0 项失败，且不再出现 `MODULE_TYPELESS_PACKAGE_JSON` 警告。
+  - `git diff --check` 通过，且不再输出 LF/CRLF 行尾提示。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+- 阶段 12 继续减少普通用户页面的禁用占位：
+  - 新增 `src/lib/study/study-notebooks.ts`，建立词汇本、句子本和笔记本的新建本地规则，覆盖标题规范化、空名称拒绝和重名拒绝。
+  - 新增 `src/components/study/study-notebook-picker.tsx`，学习页顶部“新建本”从禁用按钮改为本地可交互入口；用户可以输入名称创建新的词汇本、句子本或笔记本，并立即在下拉选择中看到。
+  - 新增 `src/lib/reader/reader-selection-save.ts`，建立阅读器选区加入词汇本/句子本的本地收藏规则，覆盖空文本、去重和用户可见提示。
+  - 阅读器右侧 AI 阅读助手现在会显示本地词汇本和句子本计数；选中文本加入词汇本或句子本后会即时反馈，重复加入会提示“已在词汇本/已在句子本”。
+  - 阅读器翻译解释小卡片中的“加入词汇本”与右侧本地收藏状态同步，加入后显示已加入状态。
+  - 以上学习本和阅读器收藏仍为本地页面状态，刷新后不持久化；真实保存、跨设备同步和删除管理仍等待数据库接入。
+- 本轮学习页和阅读器本地交互新增测试：
+  - 新增 `tests/study-notebooks.test.ts`，覆盖新建学习本、空名称和重名边界。
+  - 新增 `tests/reader-selection-save.test.ts`，覆盖阅读器选区加入词汇本、句子本和重复加入边界。
+- 本轮学习页和阅读器本地交互验证通过：
+  - `pnpm test`：187 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/study/notes`、`/study/sentences`、`/study/vocabulary`、`/reader` 和 `Proxy (Middleware)`。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - 普通用户页面扫描未命中翻译点、token、模型、API、Provider、术语联网查证、术语本、成本、审计、数据保留、生产配置、环境变量、冻结金额、冻结余额、预计冻结、冻结后可用或可用余额等不应展示概念。
+
+- 阶段 12 继续收口普通用户页面的本地交互断点：
+  - 词汇本和句子本的搜索框改为真实筛选，支持按词条、句子、解释、备注、书名和章节来源搜索。
+  - 词汇本和句子本的书籍下拉改为真实按 `bookId` 筛选，移除硬编码的额外书籍选项；无匹配结果时展示空状态。
+  - 词汇本和句子本的导出按钮从静态展示改为浏览器本地下载，分别支持 CSV 和 Markdown 文件下载，并保留用户可理解的下载反馈。
+  - 上传页选择已成功拆章的 TXT 后，会把本地草稿暂存到浏览器本地存储；“查看章节预览”现在进入 `/books/local-upload/chapters`，展示用户刚导入的章节，而不是固定演示书章节。
+  - `/books/local-upload/chapters` 新增本地草稿预览状态：有草稿时展示真实章节并复用章节重命名、跳过、恢复能力；没有草稿时提示返回导入页面。
+  - EPUB、MOBI 和 PDF 仍只进入“待处理”边界，不会假装可以拆章或进入章节预览。
+- 本轮新增/更新测试：
+  - 更新 `tests/study-collections.test.ts`，覆盖按页面可见来源文字搜索学习资料。
+  - 新增 `tests/study-download.test.ts`，覆盖学习资料导出的 MIME 类型和用户反馈文案。
+  - 新增 `tests/local-upload-storage.test.ts`，覆盖本地上传草稿路由 ID、存储 key 和只允许已拆章 TXT 草稿进入本地预览。
+- 本轮验证通过：
+  - `pnpm test`：201 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/books/[bookId]/chapters`、`/study/sentences`、`/study/vocabulary`、`/upload` 和 `Proxy (Middleware)`。
+  - `git diff --check` 通过。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+
+- 阶段 12 继续收口本地导入到书架的用户闭环：
+  - 新增 `src/lib/library/local-library-storage.ts` 的本地书重命名与移出能力，支持从浏览器本地存储中维护已保存书籍。
+  - 新增 `src/lib/library/local-library-view.ts`，将本地保存书籍转换为书架卡片数据，并保持 `local-book-*` 路由可识别。
+  - `/books/local-upload/chapters` 的章节预览侧栏新增“保存到书架”入口；用户确认 TXT 章节结构后，可以把书保存到本地书架。
+  - 书架页现在会读取浏览器本地保存的书籍，并和原有演示书一起展示；本地书支持重命名和移出，操作会同步写回本地存储。
+  - 新增 `src/components/library/local-stored-book-chapters.tsx`，让点击本地书后可以打开章节列表，不再进入找不到书的状态。
+  - 新增 `tests/local-library-storage.test.ts` 和 `tests/local-library-view.test.ts`，覆盖本地书保存数据、书架卡片映射、重命名、移出和路由识别。
+- 本轮阶段 12 本地导入到书架闭环验证：
+  - `pnpm test` 通过，210 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/books/[bookId]/chapters`、`/library` 和 `Proxy (Middleware)`。
+  - `git diff --check` 通过。
+  - 普通用户页面扫描未命中内部概念、真实环境变量名、冻结余额、可用余额或二次翻译标题。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
 
 ### 后续待办
 
+- 阶段 12 后续真实接入：真实余额、免费标准章和余额流水仍需等待 Supabase/Prisma 生产连接后接入。
+- 阶段 12 后续验收：安装或配置 Playwright 浏览器二进制后，需对首页、书架、“我的”、阅读器和任务页做截图级视觉验收。
+- 阶段 12 后续 UI 收口：真实远程数据接入后，需要补长文本、空状态、异常状态和电脑端截图检查；手机端专项打磨暂缓。
+- 阶段 11 后续真实接入：真实审计表尚未写入，后续需要等待 Supabase/Prisma 生产连接配置就绪。
+- 阶段 11 后续真实接入：封禁、加余额、退款和导出等真实管理员操作仍未执行，接入前需补充权限确认和真实审计写入。
+- 阶段 11 后续真实接入：真实删除或归档任务尚未接入，当前数据保留策略只提供本地摘要。
+- 阶段 11 后续真实接入：真实数据库和对象存储尚未接入，上传原文、导出文件和学习收藏仍未做生产级生命周期管理。
+- 阶段 10 后续真实接入：执行真实 Vercel 部署前需确认生产域名、构建变量、预览环境和回滚方案。
+- 阶段 10 后续真实接入：接入真实 Supabase 生产连接、数据库迁移和 Storage 配置。
+- 阶段 10 后续真实接入：接入真实短信、支付、AI Provider、对象存储或后台队列前需单独请求权限。
+- 阶段 10 后续真实接入：安装或配置 Playwright 浏览器二进制后再做截图级视觉验收。
+- 阶段 9 后续真实接入：执行真实 Vercel 部署前需确认生产域名、预览环境、构建变量和回滚方案。
+- 阶段 9 后续真实接入：接入真实 Supabase 生产连接、数据库迁移和存储桶配置。
+- 阶段 9 后续真实接入：接入真实短信、支付、AI Provider、对象存储或后台队列前需单独请求权限。
+- 阶段 9 后续真实接入：安装或配置 Playwright 浏览器二进制后再做截图级视觉验收。
 - 阶段 8 后续真实接入：实现真实浏览器文件下载，当前仅生成文件名和内容字符串。
 - 阶段 8 后续真实接入：实现真实 EPUB zip / OPF / NCX / manifest 打包；如需安装依赖，需先单独请求权限。
 - 阶段 8 后续真实接入：将后台摘要改为远程数据库查询，并加入真实导出记录。

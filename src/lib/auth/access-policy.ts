@@ -16,6 +16,7 @@ const protectedPrefixes = [
   "/translations",
   "/reader",
   "/study",
+  "/me",
 ];
 
 export function getRouteAccessDecision(pathWithSearch: string, session: MockSession | null): RouteAccessDecision {

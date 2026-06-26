@@ -14,7 +14,6 @@ export type MockUserProfile = {
   roleLabel: string;
   isAdmin: boolean;
   balanceYuan: string;
-  frozenYuan: string;
   freeChaptersLeft: number;
 };
 
@@ -33,7 +32,6 @@ export function buildMockUserProfile(session: MockUserProfileSession | null): Mo
     roleLabel: isAdmin ? "管理员" : "普通用户",
     isAdmin,
     balanceYuan: accountSummary.balanceYuan,
-    frozenYuan: accountSummary.frozenYuan,
     freeChaptersLeft: accountSummary.freeChaptersLeft,
   };
 }

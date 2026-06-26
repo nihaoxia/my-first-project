@@ -6,15 +6,15 @@ type ButtonVariant = "primary" | "secondary" | "ghost";
 
 const buttonClasses: Record<ButtonVariant, string> = {
   primary:
-    "bg-[var(--primary)] text-[var(--primary-foreground)] hover:brightness-95 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
+    "bg-[var(--primary)] text-[var(--primary-foreground)] hover:brightness-95 active:brightness-90 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
   secondary:
-    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-2)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
+    "border border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-2)] active:bg-[var(--muted)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
   ghost:
-    "text-[var(--muted-foreground)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
+    "text-[var(--muted-foreground)] hover:bg-[var(--surface-2)] hover:text-[var(--foreground)] active:bg-[var(--muted)] focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]",
 };
 
 const baseClasses =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition disabled:pointer-events-none disabled:opacity-50";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50";
 
 type SharedButtonProps = {
   children: ReactNode;

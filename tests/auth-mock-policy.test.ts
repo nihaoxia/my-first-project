@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   getMockUserRole,
   getSafeRedirectPath,
+  isMockAuthEnabled,
   validateMockLoginInput,
 } from "../src/lib/auth/mock-policy.ts";
 
@@ -33,6 +34,13 @@ test("mock login rejects non-development OTP codes", () => {
     ok: false,
     reason: "code",
   });
+});
+
+test("mock auth is disabled by default in production-like environments", () => {
+  assert.equal(isMockAuthEnabled({ NODE_ENV: "production", MOCK_AUTH_ENABLED: undefined }), false);
+  assert.equal(isMockAuthEnabled({ NODE_ENV: "production", MOCK_AUTH_ENABLED: "false" }), false);
+  assert.equal(isMockAuthEnabled({ NODE_ENV: "production", MOCK_AUTH_ENABLED: "true" }), true);
+  assert.equal(isMockAuthEnabled({ NODE_ENV: "development", MOCK_AUTH_ENABLED: undefined }), true);
 });
 
 test("safe redirect accepts internal application paths", () => {

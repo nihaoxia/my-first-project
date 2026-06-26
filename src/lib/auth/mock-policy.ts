@@ -3,7 +3,12 @@ export const mockAdminPhoneSuffix = "0000";
 
 export type UserRole = "USER" | "ADMIN";
 
-type MockLoginFailureReason = "phone" | "code";
+type MockLoginFailureReason = "phone" | "code" | "mock-disabled";
+
+export type MockAuthEnvironment = {
+  NODE_ENV?: string;
+  MOCK_AUTH_ENABLED?: string;
+};
 
 export type MockLoginValidationResult =
   | {
@@ -29,6 +34,10 @@ export function getMockUserRole(phone: string): UserRole {
 }
 
 export function validateMockLoginInput(phoneInput: string, codeInput: string): MockLoginValidationResult {
+  if (!isMockAuthEnabled()) {
+    return { ok: false, reason: "mock-disabled" };
+  }
+
   const phone = normalizePhoneInput(phoneInput);
   const code = codeInput.trim();
 
@@ -59,4 +68,12 @@ export function getSafeRedirectPath(nextPath: string | null | undefined, fallbac
   }
 
   return trimmed;
+}
+
+export function isMockAuthEnabled(env: MockAuthEnvironment = process.env) {
+  if (env.NODE_ENV === "production") {
+    return env.MOCK_AUTH_ENABLED === "true";
+  }
+
+  return env.MOCK_AUTH_ENABLED !== "false";
 }

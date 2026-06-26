@@ -1,7 +1,6 @@
 import {
   BookOpen,
   CircleUserRound,
-  Coins,
   Library,
   LogOut,
   Settings,
@@ -9,6 +8,7 @@ import {
   Upload,
   WalletCards,
 } from "lucide-react";
+import { clsx } from "clsx";
 import { shouldShowAdminNavigation } from "@/lib/auth/access-policy";
 import { buildMockUserProfile } from "@/lib/auth/mock-user-profile";
 import { getMockSession } from "@/lib/auth/mock-session";
@@ -21,19 +21,31 @@ const navItems = [
   { href: routes.upload, label: "上传", icon: Upload },
   { href: routes.reader, label: "阅读器", icon: BookOpen },
   { href: routes.vocabulary, label: "学习", icon: WalletCards },
+  { href: routes.me, label: "我的", icon: CircleUserRound },
   { href: routes.admin, label: "后台", icon: ShieldCheck, adminOnly: true },
 ];
 
-export async function AppShell({ children }: { children: React.ReactNode }) {
+export async function AppShell({
+  children,
+  wide = false,
+}: {
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
   const session = await getMockSession();
   const profile = buildMockUserProfile(session);
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || shouldShowAdminNavigation(session));
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      <header className="border-b border-[var(--border)] bg-[var(--surface)]">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-6">
-          <a className="shrink-0 text-base font-semibold" href={routes.home}>
+      <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--surface)]">
+        <div
+          className={clsx(
+            "mx-auto flex h-16 items-center justify-between gap-4 px-5 md:px-6",
+            wide ? "max-w-[1760px]" : "max-w-7xl",
+          )}
+        >
+          <a className="shrink-0 text-base font-semibold tracking-normal" href={routes.home}>
             Stray Pages
           </a>
           <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
@@ -49,22 +61,12 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
           {profile ? (
             <div className="flex shrink-0 items-center gap-3">
-              <div className="hidden min-w-0 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 lg:block">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <CircleUserRound aria-hidden="true" size={16} />
-                  <span>{profile.maskedPhone}</span>
-                  <span className="rounded-sm bg-[var(--primary)] px-1.5 py-0.5 text-xs text-[var(--primary-foreground)]">
-                    {profile.roleLabel}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center gap-3 text-xs text-[var(--muted-foreground)]">
-                  <span className="inline-flex items-center gap-1">
-                    <Coins aria-hidden="true" size={13} />
-                    余额 ¥{profile.balanceYuan}
-                  </span>
-                  <span>冻结 ¥{profile.frozenYuan}</span>
-                  <span>免费 {profile.freeChaptersLeft} 个标准章</span>
-                </div>
+              <div className="hidden min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 lg:flex">
+                <CircleUserRound aria-hidden="true" size={16} />
+                <span className="text-sm font-medium">{profile.maskedPhone}</span>
+                <span className="rounded-sm bg-[var(--primary)] px-1.5 py-0.5 text-xs text-[var(--primary-foreground)]">
+                  {profile.roleLabel}
+                </span>
               </div>
               <span className="rounded-sm border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] lg:hidden">
                 {profile.roleLabel}
@@ -84,7 +86,9 @@ export async function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
+      <main className={clsx("mx-auto px-5 py-7 md:px-6 md:py-8", wide ? "max-w-none" : "max-w-7xl")}>
+        {children}
+      </main>
     </div>
   );
 }

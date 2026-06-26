@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildUploadDraft } from "../src/lib/upload/upload-draft.ts";
+import { buildUploadDraft, canContinueToChapterPreview } from "../src/lib/upload/upload-draft.ts";
 
 test("rejects unsupported upload files before building a draft", () => {
-  assert.deepEqual(buildUploadDraft({ name: "scan.pdf", size: 1024 }), {
+  assert.deepEqual(buildUploadDraft({ name: "scan.docx", size: 1024 }), {
     ok: false,
     reason: "unsupported-format",
   });
@@ -64,4 +64,50 @@ test("keeps EPUB drafts explicit about parser support", () => {
     chapters: [],
     warnings: [],
   });
+});
+
+test("keeps MOBI and PDF drafts explicit about later processing", () => {
+  assert.deepEqual(buildUploadDraft({ name: "迷雾边境 - 林间客.mobi", size: 2048 }), {
+    ok: true,
+    format: "MOBI",
+    metadata: {
+      title: "迷雾边境",
+      author: "林间客",
+      format: "MOBI",
+      originalFileName: "迷雾边境 - 林间客.mobi",
+    },
+    parseStatus: "needs-file-parser",
+    chapters: [],
+    warnings: [],
+  });
+
+  assert.deepEqual(buildUploadDraft({ name: "资料合集.pdf", size: 2048 }), {
+    ok: true,
+    format: "PDF",
+    metadata: {
+      title: "资料合集",
+      author: null,
+      format: "PDF",
+      originalFileName: "资料合集.pdf",
+    },
+    parseStatus: "needs-file-parser",
+    chapters: [],
+    warnings: [],
+  });
+});
+
+test("only parsed TXT drafts can continue to chapter preview", () => {
+  const parsedTxtDraft = buildUploadDraft({
+    name: "迷雾边境 - 林间客.txt",
+    size: 4096,
+    textContent: "第一章 雾起\n雾从边境漫过来。",
+  });
+  const pendingPdfDraft = buildUploadDraft({ name: "资料合集.pdf", size: 2048 });
+  const pendingEpubDraft = buildUploadDraft({ name: "迷雾边境 - 林间客.epub", size: 2048 });
+
+  assert.equal(canContinueToChapterPreview(parsedTxtDraft), true);
+  assert.equal(canContinueToChapterPreview(pendingPdfDraft), false);
+  assert.equal(canContinueToChapterPreview(pendingEpubDraft), false);
+  assert.equal(canContinueToChapterPreview({ ok: false, reason: "unsupported-format" }), false);
+  assert.equal(canContinueToChapterPreview({ ok: false, reason: "file-read-failed" }), false);
 });

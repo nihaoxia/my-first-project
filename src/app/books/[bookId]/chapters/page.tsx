@@ -1,11 +1,16 @@
-import { AlertTriangle, ArrowRight, FilePenLine, SkipForward } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
+import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { LocalStoredBookChapters } from "@/components/library/local-stored-book-chapters";
 import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/ui/status-pill";
 import { ChapterEditorPanel } from "@/components/upload/chapter-editor-panel";
+import { LocalChapterPreview } from "@/components/upload/local-chapter-preview";
+import { isLocalLibraryBookId } from "@/lib/library/local-library-view";
 import { chapters, originalBooks } from "@/lib/mock-data";
-import { routes } from "@/lib/routes";
+import { routeBuilders } from "@/lib/routes";
 import { buildEditableChapters } from "@/lib/upload/chapter-editing";
+import { localUploadBookId } from "@/lib/upload/local-upload-storage";
 import { buildUploadDraft } from "@/lib/upload/upload-draft";
 import { parseTxtChapters, txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
 
@@ -19,8 +24,34 @@ const sampleUploadDraft = buildUploadDraft({
   textContent: sampleTextContent,
 });
 
-export default function ChapterPreviewPage() {
-  const book = originalBooks[0];
+export default async function ChapterPreviewPage({
+  params,
+}: {
+  params: Promise<{ bookId: string }>;
+}) {
+  const { bookId } = await params;
+
+  if (bookId === localUploadBookId) {
+    return (
+      <AppShell>
+        <LocalChapterPreview />
+      </AppShell>
+    );
+  }
+
+  if (isLocalLibraryBookId(bookId)) {
+    return (
+      <AppShell>
+        <LocalStoredBookChapters bookId={bookId} />
+      </AppShell>
+    );
+  }
+
+  const book = originalBooks.find((item) => item.id === bookId);
+
+  if (!book) {
+    notFound();
+  }
 
   return (
     <AppShell>
@@ -32,7 +63,7 @@ export default function ChapterPreviewPage() {
             已识别 {book.chapters} 章。确认章节结构后，可以创建目标语言译本。
           </p>
         </div>
-        <Button href={routes.translate}>
+        <Button href={routeBuilders.bookTranslate(book.id)}>
           创建译本
           <ArrowRight aria-hidden="true" size={18} />
         </Button>
@@ -81,7 +112,7 @@ export default function ChapterPreviewPage() {
           </div>
           <div className="divide-y divide-[var(--border)]">
             {chapters.map((chapter) => (
-              <div key={chapter.id} className="grid gap-4 p-5 lg:grid-cols-[1fr_120px_120px_110px]">
+              <div key={chapter.id} className="grid gap-4 p-5 lg:grid-cols-[1fr_120px_120px]">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-medium">{chapter.title}</h3>
@@ -98,14 +129,6 @@ export default function ChapterPreviewPage() {
                 <div className="text-sm">
                   <p className="text-[var(--muted-foreground)]">预计费用</p>
                   <p className="mt-1 font-medium">¥ {chapter.cost}</p>
-                </div>
-                <div className="flex items-start gap-2">
-                  <Button variant="ghost">
-                    <FilePenLine aria-hidden="true" size={16} />
-                  </Button>
-                  <Button variant="ghost">
-                    <SkipForward aria-hidden="true" size={16} />
-                  </Button>
                 </div>
               </div>
             ))}

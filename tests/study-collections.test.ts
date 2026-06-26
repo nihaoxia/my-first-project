@@ -4,6 +4,8 @@ import test from "node:test";
 import {
   createSentenceDraft,
   createVocabularyDraft,
+  deleteSentenceItem,
+  deleteVocabularyItem,
   filterSentenceItems,
   filterVocabularyItems,
   mergeVocabularyItem,
@@ -113,6 +115,43 @@ test("filters vocabulary and sentence items by query and book", () => {
   );
 });
 
+test("filters study items by visible source labels", () => {
+  const vocabulary = [
+    createVocabularyDraft({
+      term: "threshold",
+      explanation: "doorway",
+      contextualMean: "edge",
+      sourceSentence: "He paused at the threshold.",
+      bookId: "demo-book",
+      bookTitle: "The Border of Mist",
+      chapterId: "chapter-2",
+      chapterTitle: "Black Bridge",
+      note: "",
+    }),
+  ];
+  const sentences = [
+    createSentenceDraft({
+      originalText: "He did not answer.",
+      translatedText: "他没有回答。",
+      explanation: "",
+      bookId: "demo-book",
+      bookTitle: "The Border of Mist",
+      chapterId: "chapter-2",
+      chapterTitle: "Black Bridge",
+      note: "",
+    }),
+  ];
+
+  assert.deepEqual(
+    filterVocabularyItems(vocabulary, { query: "black bridge" }).map((item) => item.term),
+    ["threshold"],
+  );
+  assert.deepEqual(
+    filterSentenceItems(sentences, { query: "border of mist" }).map((item) => item.originalText),
+    ["He did not answer."],
+  );
+});
+
 test("previews deletion without mutating study items", () => {
   const preview = previewStudyItemDeletion({
     id: "sentence-demo-book-chapter-2-1",
@@ -123,4 +162,32 @@ test("previews deletion without mutating study items", () => {
   assert.equal(preview.id, "sentence-demo-book-chapter-2-1");
   assert.equal(preview.kind, "sentence");
   assert.match(preview.message, /将从句子本移除/);
+});
+
+test("deletes vocabulary and sentence items from local lists", () => {
+  const vocabulary = [
+    createVocabularyDraft({
+      term: "threshold",
+      explanation: "门槛",
+      contextualMean: "边界",
+      sourceSentence: "He paused at the threshold.",
+      bookId: "demo-book",
+      bookTitle: "迷雾边境",
+      chapterId: "chapter-2",
+      chapterTitle: "第二章：黑桥",
+      note: "",
+    }),
+  ];
+  const sentences = [
+    createSentenceDraft({
+      originalText: "他没有回答，只把灯举得更高。",
+      bookId: "demo-book",
+      bookTitle: "迷雾边境",
+      chapterId: "chapter-2",
+      chapterTitle: "第二章：黑桥",
+    }),
+  ];
+
+  assert.deepEqual(deleteVocabularyItem(vocabulary, vocabulary[0].id), []);
+  assert.deepEqual(deleteSentenceItem(sentences, sentences[0].id), []);
 });

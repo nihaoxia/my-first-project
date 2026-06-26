@@ -2,6 +2,7 @@
   "name": "stray-pages",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@11.5.3",
   "engines": {
     "node": ">=20.11"

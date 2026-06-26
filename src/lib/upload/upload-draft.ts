@@ -9,7 +9,7 @@ export type UploadDraftInput = UploadFileCandidate & {
   textContent?: string;
 };
 
-export type UploadDraftParseStatus = "needs-text-content" | "needs-epub-parser" | "parsed";
+export type UploadDraftParseStatus = "needs-text-content" | "needs-epub-parser" | "needs-file-parser" | "parsed";
 
 export type UploadDraftResult =
   | {
@@ -23,6 +23,15 @@ export type UploadDraftResult =
       parseStatus: UploadDraftParseStatus;
       chapters: TxtChapterPreview[];
       warnings: TxtChapterWarning[];
+    };
+
+export type ChapterPreviewCandidate =
+  | null
+  | { ok: false }
+  | {
+      ok: true;
+      parseStatus: UploadDraftParseStatus;
+      chapters: TxtChapterPreview[];
     };
 
 export function buildUploadDraft(input: UploadDraftInput): UploadDraftResult {
@@ -55,6 +64,17 @@ export function buildUploadDraft(input: UploadDraftInput): UploadDraftResult {
     };
   }
 
+  if (validation.format === "MOBI" || validation.format === "PDF") {
+    return {
+      ok: true,
+      format: validation.format,
+      metadata,
+      parseStatus: "needs-file-parser",
+      chapters: [],
+      warnings: [],
+    };
+  }
+
   if (typeof input.textContent !== "string") {
     return {
       ok: true,
@@ -76,4 +96,8 @@ export function buildUploadDraft(input: UploadDraftInput): UploadDraftResult {
     chapters: parseResult.chapters,
     warnings: parseResult.warnings,
   };
+}
+
+export function canContinueToChapterPreview(draft: ChapterPreviewCandidate) {
+  return Boolean(draft?.ok === true && draft.parseStatus === "parsed" && draft.chapters.length > 0);
 }

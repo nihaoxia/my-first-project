@@ -22,8 +22,8 @@ test("builds a deterministic translated chapter from source paragraphs", () => {
   assert.equal(chapter.title, "第二章：黑桥");
   assert.equal(chapter.targetLanguage, "英文");
   assert.deepEqual(chapter.paragraphs, [
-    "[Mock English] The mist-like border scene is rendered from: 雾像一层沉睡的灰布，缓慢盖过边境。",
-    "[Mock English] The lamp-lit response is rendered from: 他没有回答，只把灯举得更高。",
+    "The mist moved like a sleeping gray cloth, slowly covering the border.",
+    "He did not answer; he only raised the lamp higher.",
   ]);
 });
 
@@ -35,9 +35,7 @@ test("falls back to a neutral mock translation for unmatched paragraphs", () => 
     sourceParagraphs: ["A quiet sentence with no known motif."],
   });
 
-  assert.deepEqual(chapter.paragraphs, [
-    "[Mock English] A clear literary translation is rendered from: A quiet sentence with no known motif.",
-  ]);
+  assert.deepEqual(chapter.paragraphs, ["A clear literary translation is ready for this paragraph."]);
 });
 
 test("returns the requested reader chapter from translated chapters", () => {

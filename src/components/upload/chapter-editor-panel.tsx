@@ -10,17 +10,25 @@ import {
   summarizeEditableChapters,
   type EditableChapter,
 } from "@/lib/upload/chapter-editing";
-import { buildOriginalBookDraft } from "@/lib/upload/original-book-draft";
+import {
+  buildOriginalBookDraft,
+  type OriginalBookDraftResult,
+} from "@/lib/upload/original-book-draft";
 import type { UploadDraftResult } from "@/lib/upload/upload-draft";
 
 type SuccessfulUploadDraft = Extract<UploadDraftResult, { ok: true }>;
+type SuccessfulOriginalBookDraft = Extract<OriginalBookDraftResult, { ok: true }>;
 
 export function ChapterEditorPanel({
   initialChapters,
   uploadDraft,
+  onSaveDraft,
+  saveActionLabel = "保存到书架",
 }: {
   initialChapters: EditableChapter[];
   uploadDraft: SuccessfulUploadDraft;
+  onSaveDraft?: (draft: SuccessfulOriginalBookDraft) => void;
+  saveActionLabel?: string;
 }) {
   const [chapters, setChapters] = useState(initialChapters);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +137,15 @@ export function ChapterEditorPanel({
               <dd className="font-medium">{originalBookDraft.book.totalCharacters}</dd>
             </div>
           </dl>
+          {onSaveDraft ? (
+            <Button
+              type="button"
+              className="mt-4 w-full"
+              onClick={() => onSaveDraft(originalBookDraft)}
+            >
+              {saveActionLabel}
+            </Button>
+          ) : null}
         </section>
       ) : (
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">

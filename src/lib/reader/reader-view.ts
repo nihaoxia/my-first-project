@@ -15,12 +15,15 @@ export type ReaderChapterInput = {
   wordCount: number;
   sourceParagraphs: string[];
   translatedParagraphs: string[];
+  secondaryTranslationParagraphs?: string[];
 };
 
 export type ReaderParagraphRow = {
   index: number;
   sourceText: string;
   translatedText: string;
+  learningText: string;
+  secondaryTranslationText: string;
   displayText: string;
 };
 
@@ -43,9 +46,9 @@ export type ReaderView = {
 };
 
 export const defaultReaderSettings: ReaderSettings = {
-  fontSize: 18,
-  lineHeight: 1.9,
-  contentWidth: 760,
+  fontSize: 19,
+  lineHeight: 1.72,
+  contentWidth: 1280,
   theme: "light",
 };
 
@@ -91,7 +94,7 @@ export function normalizeReaderSettings(settings: Partial<ReaderSettings> = {}):
     contentWidth: clampInteger(
       settings.contentWidth,
       640,
-      920,
+      1480,
       defaultReaderSettings.contentWidth,
     ),
     theme: isReaderTheme(settings.theme) ? settings.theme : defaultReaderSettings.theme,
@@ -118,12 +121,17 @@ function buildParagraphRows(
 
   return Array.from({ length: rowCount }, (_, index) => {
     const sourceText = chapter.sourceParagraphs[index] ?? "";
-    const translatedText = chapter.translatedParagraphs[index] ?? "";
+    const translatedText = cleanReaderText(chapter.translatedParagraphs[index] ?? "");
+    const secondaryTranslationText = cleanReaderText(
+      chapter.secondaryTranslationParagraphs?.[index] ?? sourceText,
+    );
 
     return {
       index,
       sourceText,
       translatedText,
+      learningText: translatedText || sourceText,
+      secondaryTranslationText,
       displayText: getDisplayTextForMode({ mode, sourceText, translatedText }),
     };
   });
@@ -163,9 +171,20 @@ function clampNumber(value: number | undefined, min: number, max: number, fallba
     return fallback;
   }
 
-  return Math.round(Math.min(Math.max(value, min), max) * 10) / 10;
+  return Math.round(Math.min(Math.max(value, min), max) * 100) / 100;
 }
 
 function isReaderTheme(value: unknown): value is ReaderTheme {
   return value === "light" || value === "sepia" || value === "dark";
+}
+
+function cleanReaderText(text: string) {
+  const trimmed = text.trim();
+  const mockMatch = trimmed.match(/^\[Mock [^\]]+\]\s*(.+?)\s+is rendered from:\s+.+$/);
+
+  if (mockMatch) {
+    return `${mockMatch[1].trim()}.`;
+  }
+
+  return trimmed;
 }

@@ -2,11 +2,12 @@ import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { loginWithMockOtp } from "@/app/login/actions";
 import { mockOtpCode } from "@/lib/auth/mock-session";
-import { getSafeRedirectPath } from "@/lib/auth/mock-policy";
+import { getSafeRedirectPath, isMockAuthEnabled } from "@/lib/auth/mock-policy";
 
 const errorMessages: Record<string, string> = {
   phone: "请输入 11 位中国大陆手机号。",
-  code: "验证码不正确。开发期固定验证码为 123456。",
+  code: "验证码不正确。",
+  "mock-disabled": "登录服务正在接入中，请稍后再试。",
 };
 
 export default async function LoginPage({
@@ -17,19 +18,28 @@ export default async function LoginPage({
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : null;
   const nextPath = getSafeRedirectPath(params?.next, "");
+  const mockAuthEnabled = isMockAuthEnabled();
 
   return (
     <AppShell>
       <section className="mx-auto max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6">
         <h1 className="text-2xl font-semibold">手机号登录</h1>
-        <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-          开发阶段使用模拟验证码，后续会替换为真实短信服务或 Supabase Auth 手机号验证。
-        </p>
+        {mockAuthEnabled ? (
+          <>
+            <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+              开发阶段使用模拟验证码，后续会替换为真实短信服务或 Supabase Auth 手机号验证。
+            </p>
 
-        <div className="mt-4 rounded-lg bg-[var(--surface-2)] p-3 text-sm text-[var(--muted-foreground)]">
-          开发期固定验证码：<span className="font-semibold text-[var(--foreground)]">{mockOtpCode}</span>。
-          手机号以 <span className="font-semibold text-[var(--foreground)]">0000</span> 结尾时模拟管理员。
-        </div>
+            <div className="mt-4 rounded-lg bg-[var(--surface-2)] p-3 text-sm text-[var(--muted-foreground)]">
+              开发期固定验证码：<span className="font-semibold text-[var(--foreground)]">{mockOtpCode}</span>。
+              手机号以 <span className="font-semibold text-[var(--foreground)]">0000</span> 结尾时模拟管理员。
+            </div>
+          </>
+        ) : (
+          <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+            登录服务正在接入中。
+          </p>
+        )}
 
         {params?.next ? (
           <p className="mt-4 rounded-lg bg-blue-50 p-3 text-sm text-blue-700">
@@ -53,7 +63,7 @@ export default async function LoginPage({
             name="code"
             placeholder="验证码"
           />
-          <Button className="w-full">继续</Button>
+          <Button className="w-full" disabled={!mockAuthEnabled}>继续</Button>
         </form>
       </section>
     </AppShell>

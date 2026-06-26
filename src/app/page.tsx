@@ -2,7 +2,7 @@ import { ArrowRight, BookMarked, Languages, SearchCheck, Sparkles } from "lucide
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
-import { accountSummary, translatedBooks } from "@/lib/mock-data";
+import { originalBooks, translatedBooks, translationTasks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
 const workflow = [
@@ -18,7 +18,7 @@ const workflow = [
   },
   {
     title: "创建译本",
-    description: "选择目标语言，按章估算费用并冻结余额。",
+    description: "选择目标语言，确认费用后加入翻译队列。",
     icon: Languages,
   },
   {
@@ -33,13 +33,13 @@ export default function HomePage() {
 
   return (
     <AppShell>
-      <section className="grid min-h-[calc(100vh-8rem)] items-center gap-10 lg:grid-cols-[1fr_430px]">
+      <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_420px]">
         <div className="max-w-3xl">
           <p className="mb-4 text-sm font-medium text-[var(--primary)]">
             私人小说翻译与语言学习工作台
           </p>
-          <h1 className="text-5xl leading-tight font-semibold tracking-normal text-[var(--foreground)]">
-            把你有权处理的小说，变成可阅读、可学习、可导出的译本。
+          <h1 className="max-w-3xl text-4xl leading-tight font-semibold tracking-normal text-[var(--foreground)] md:text-5xl">
+            把你的小说，变成可阅读、可学习、可导出的译本。
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
             上传 TXT 或 EPUB，确认章节后创建译本。系统按章翻译、自动质检，并在阅读时提供划词解释、句子收藏和学习资料导出。
@@ -54,17 +54,13 @@ export default function HomePage() {
             </Button>
           </div>
           <div className="mt-10 grid gap-3 sm:grid-cols-3">
-            <MetricCard label="账户余额" value={`¥ ${accountSummary.balance}`} detail="模拟余额" />
-            <MetricCard label="冻结金额" value={`¥ ${accountSummary.frozen}`} detail="任务处理中" />
-            <MetricCard
-              label="免费额度"
-              value={`${accountSummary.freeChaptersLeft}`}
-              detail="剩余标准章"
-            />
+            <MetricCard label="原版书" value={`${originalBooks.length}`} detail="私人上传内容" />
+            <MetricCard label="译本" value={`${translatedBooks.length}`} detail="按目标语言保存" />
+            <MetricCard label="最近任务" value={`${translationTasks.length}`} detail="翻译队列章节" />
           </div>
         </div>
 
-        <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
+        <aside className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="border-b border-[var(--border)] pb-4">
             <p className="text-sm text-[var(--muted-foreground)]">当前译本</p>
             <h2 className="mt-1 text-xl font-semibold">{activeTranslation.title}</h2>
@@ -84,11 +80,11 @@ export default function HomePage() {
               />
             </div>
             <div className="mt-5 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-lg bg-[var(--surface-2)] p-3">
+              <div className="rounded-md bg-[var(--surface-2)] p-3">
                 <p className="text-[var(--muted-foreground)]">完成章节</p>
                 <p className="mt-1 text-lg font-semibold">{activeTranslation.completedChapters}</p>
               </div>
-              <div className="rounded-lg bg-[var(--surface-2)] p-3">
+              <div className="rounded-md bg-[var(--surface-2)] p-3">
                 <p className="text-[var(--muted-foreground)]">失败章节</p>
                 <p className="mt-1 text-lg font-semibold">{activeTranslation.failedChapters}</p>
               </div>

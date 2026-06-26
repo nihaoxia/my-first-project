@@ -1,7 +1,16 @@
-import { routes } from "@/lib/routes";
+import { routeBuilders } from "@/lib/routes";
+import {
+  buildAdminAuditRecord,
+  summarizeAdminAuditRecords,
+} from "@/lib/admin/admin-audit-policy";
 import { buildAdminExportSummary } from "@/lib/admin/admin-export-summary";
+import {
+  getDataRetentionPolicies,
+  summarizeDataRetentionPolicies,
+} from "@/lib/admin/data-retention-policy";
 import { buildMockAccountSummary, formatYuanFromCents } from "@/lib/account/mock-account-summary";
 import { buildMockBalanceRecords } from "@/lib/account/mock-balance-ledger";
+import { buildMyPageSummary } from "@/lib/account/my-page-summary";
 import {
   buildEpubExportDraft,
   buildTranslatedBookTxtExport,
@@ -10,6 +19,23 @@ import {
   buildSentenceMarkdownExport,
   buildVocabularyCsvExport,
 } from "@/lib/export/study-export";
+import {
+  getLaunchChecklist,
+  getLaunchDisplayStates,
+} from "@/lib/launch/launch-states";
+import {
+  getLegalNoticesForSurface,
+  getLaunchLegalNotices,
+} from "@/lib/launch/legal-notices";
+import {
+  evaluateLocalRateLimit,
+  getLaunchRateLimitPolicies,
+} from "@/lib/launch/rate-limit-policy";
+import {
+  evaluateProductionPreflight,
+  getProductionEnvRequirements,
+  getProductionRolloutSteps,
+} from "@/lib/launch/production-preflight";
 import { answerReaderQuestion, buildReadingAssistantResult } from "@/lib/reader/reading-assistant";
 import { buildReaderView } from "@/lib/reader/reader-view";
 import {
@@ -63,6 +89,14 @@ export const accountSummary = {
   estimatedAfterSelection: "11.40",
 };
 
+export const myPageSummary = buildMyPageSummary({
+  balanceYuan: mockAccountSummary.balanceYuan,
+  freeChaptersLeft: mockAccountSummary.freeChaptersLeft,
+  originalBookCount: 2,
+  translatedBookCount: 2,
+  recentTaskCount: 3,
+});
+
 export const originalBooks = [
   {
     id: "demo-book",
@@ -75,7 +109,7 @@ export const originalBooks = [
     uploadedAt: "2026-06-22",
     lastOpenedAt: "今天 17:20",
     progress: "第 3 章",
-    href: routes.chapters,
+    href: routeBuilders.bookChapters("demo-book"),
   },
   {
     id: "silent-archive",
@@ -88,7 +122,7 @@ export const originalBooks = [
     uploadedAt: "2026-06-18",
     lastOpenedAt: "昨天 21:10",
     progress: "未开始",
-    href: routes.chapters,
+    href: routeBuilders.bookChapters("silent-archive"),
   },
 ];
 
@@ -105,7 +139,7 @@ export const translatedBooks = [
     createdAt: "2026-06-22",
     lastReadAt: "今天 17:35",
     readingProgress: "第 2 章",
-    href: routes.tasks,
+    href: routeBuilders.translationTasks("demo-translation"),
   },
   {
     id: "demo-jp",
@@ -119,7 +153,7 @@ export const translatedBooks = [
     createdAt: "2026-06-21",
     lastReadAt: "未阅读",
     readingProgress: "未开始",
-    href: routes.tasks,
+    href: routeBuilders.translationTasks("demo-jp"),
   },
 ];
 
@@ -308,7 +342,7 @@ export const stageFiveQueueRun = runMockTranslationQueueBatch({
   tasks: stageFiveQueue.tasks,
   failedChapterIds: ["chapter-5"],
   canceledChapterIds: ["chapter-3"],
-  failureReason: "模拟质检发现段落数量异常，已返还冻结金额。",
+  failureReason: "模拟质检发现段落数量异常，本章未扣费。",
 });
 
 export const stageFiveQueueSummary = getMockTranslationQueueSummary(stageFiveQueueRun.tasks);
@@ -423,6 +457,10 @@ const stageSevenReaderSourceChapters = [
       "守望塔上，林已经看不见黑桥，只能看见桥肋上的灯在摇晃。",
     ],
     translatedParagraphs: stageFiveTranslatedChapters[0].paragraphs,
+    secondaryTranslationParagraphs: [
+      "雾像一层沉睡的灰布，缓慢盖过边境。",
+      "守望塔上，林已经看不见黑桥，只能看见桥肋上的灯在摇晃。",
+    ],
   },
   {
     id: "chapter-2",
@@ -434,13 +472,19 @@ const stageSevenReaderSourceChapters = [
       "旅店门槛前，地板发出耐心的轻响。",
     ],
     translatedParagraphs: stageFiveTranslatedChapters[1].paragraphs,
+    secondaryTranslationParagraphs: [
+      "他没有回答，只把灯举得更高。",
+      "老雾守曾提醒他，雾里的名字会改变，粗心的翻译会唤来错误的记忆。",
+      "旅店门槛前，地板发出耐心的轻响。",
+    ],
   },
   {
     id: "chapter-3",
     title: "第三章：无名旅店",
     wordCount: 6120,
     sourceParagraphs: ["旅店没有招牌，只有一排被雾打湿的窗。"],
-    translatedParagraphs: ["[Mock English] The inn had no sign, only windows dampened by mist."],
+    translatedParagraphs: ["The inn had no sign, only a row of windows dampened by mist."],
+    secondaryTranslationParagraphs: ["旅店没有招牌，只有一排被雾打湿的窗。"],
   },
 ];
 
@@ -449,9 +493,9 @@ export const stageSevenReaderView = buildReaderView({
   currentChapterId: "chapter-2",
   mode: "parallel",
   settings: {
-    fontSize: 18,
-    lineHeight: 1.9,
-    contentWidth: 780,
+    fontSize: 19,
+    lineHeight: 1.72,
+    contentWidth: 1360,
     theme: "light",
   },
 });
@@ -599,6 +643,81 @@ export const stageEightAdminSummary = buildAdminExportSummary({
   exportFiles: stageEightExportFiles,
 });
 
+export const stageNineLegalNotices = getLaunchLegalNotices();
+export const stageNineHomeNotices = getLegalNoticesForSurface("home");
+export const stageNineUploadNotices = getLegalNoticesForSurface("upload");
+export const stageNineTranslationNotices = getLegalNoticesForSurface("translation");
+export const stageNineRateLimitPolicies = getLaunchRateLimitPolicies();
+export const stageNineReaderAssistantLimit = evaluateLocalRateLimit({
+  action: "reader-assistant-question",
+  usedCount: 8,
+});
+export const stageNineCreateTranslationLimit = evaluateLocalRateLimit({
+  action: "create-translation",
+  usedCount: 2,
+});
+export const stageNineDisplayStates = getLaunchDisplayStates();
+export const stageNineLaunchChecklist = getLaunchChecklist();
+export const stageTenProductionRequirements = getProductionEnvRequirements();
+export const stageTenProductionPreflight = evaluateProductionPreflight({
+  DATABASE_URL: "",
+  DIRECT_URL: "",
+  NEXT_PUBLIC_SUPABASE_URL: "",
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: "your-anon-key",
+  SUPABASE_SERVICE_ROLE_KEY: "",
+  MOCK_AUTH_ENABLED: "true",
+  NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+});
+export const stageTenProductionPreflightItems = [
+  {
+    label: "必需配置",
+    value: `${stageTenProductionPreflight.readyCount}/${stageTenProductionPreflight.requiredCount}`,
+  },
+  { label: "缺失项", value: String(stageTenProductionPreflight.missingKeys.length) },
+  { label: "占位项", value: String(stageTenProductionPreflight.placeholderKeys.length) },
+  { label: "风险项", value: String(stageTenProductionPreflight.risks.length) },
+];
+export const stageTenProductionRolloutSteps = getProductionRolloutSteps();
+export const stageElevenAdminAuditRecords = [
+  buildAdminAuditRecord({
+    action: "add-balance",
+    actorId: "admin-001",
+    targetId: "user-13800138000",
+    reason: "线下充值补录",
+    createdAt: "2026-06-24T10:30:00.000Z",
+    metadata: {
+      phone: "13800138000",
+      amountCents: 5000,
+      serviceRoleKey: "mock-service-role-secret",
+    },
+  }),
+  buildAdminAuditRecord({
+    action: "export-user-data",
+    actorId: "admin-001",
+    targetId: "user-13900139000",
+    reason: "用户请求导出资料",
+    createdAt: "2026-06-24T10:45:00.000Z",
+    metadata: {
+      phone: "13900139000",
+      exportFile: "user-data-2026-06-24.csv",
+    },
+  }),
+  buildAdminAuditRecord({
+    action: "view-cost-ledger",
+    actorId: "admin-002",
+    targetId: "translation-task-001",
+    reason: "",
+    createdAt: "2026-06-24T11:00:00.000Z",
+    metadata: {},
+  }),
+];
+export const stageElevenAdminAuditSummary =
+  summarizeAdminAuditRecords(stageElevenAdminAuditRecords);
+export const stageElevenDataRetentionPolicies = getDataRetentionPolicies();
+export const stageElevenDataRetentionSummary = summarizeDataRetentionPolicies(
+  stageElevenDataRetentionPolicies,
+);
+
 const stageSixSourceText = [
   "《雾灯协议》第一次被 Mistwarden Lin 提起时，黑桥下的水还没有倒流。",
   "他没有回答，只把灯举得更高，让雾守的影子落在旧地图上。",
@@ -709,15 +828,15 @@ function mapMockTaskStatusToDisplayStatus(status: MockTranslationTaskStatus): Tr
 
 function getStageFiveTaskProgress(status: MockTranslationTaskStatus, progressPercent: number) {
   if (status === "succeeded") {
-    return "模拟译文已生成，冻结金额已转为扣费。";
+    return "模拟译文已生成，费用已结算。";
   }
 
   if (status === "failed") {
-    return "模拟任务失败，冻结金额已返还。";
+    return "模拟任务失败，未扣费。";
   }
 
   if (status === "canceled") {
-    return "用户取消队列任务，冻结金额已返还。";
+    return "用户取消队列任务，未扣费。";
   }
 
   if (status === "running") {
@@ -736,7 +855,7 @@ function getStageFiveBalanceEffect(task: {
   }
 
   if (task.releasedCents > 0) {
-    return `返还 ${formatYuanFromCents(task.releasedCents)}`;
+    return "未扣费";
   }
 
   return "无余额变动";
