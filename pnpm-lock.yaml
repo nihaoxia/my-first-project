@@ -8,9 +8,15 @@ importers:
 
   .:
     dependencies:
+      '@edgeone/pages-blob':
+        specifier: 0.0.14
+        version: 0.0.14
       '@modelcontextprotocol/sdk':
         specifier: 1.29.0
         version: 1.29.0(zod@4.4.3)
+      '@noble/hashes':
+        specifier: 2.2.0
+        version: 2.2.0
       '@prisma/adapter-pg':
         specifier: 7.8.0
         version: 7.8.0
@@ -175,6 +181,10 @@ packages:
   '@babel/types@7.29.7':
     resolution: {integrity: sha512-4zBIxpPzowiZpusoFkyGVwakdRJUyuH5PxQ/PrqghfdFWWasvnCdPfQXHrenDai+gyLARulZjZowCOj6fjT4pA==}
     engines: {node: '>=6.9.0'}
+
+  '@edgeone/pages-blob@0.0.14':
+    resolution: {integrity: sha512-u4zSac1JKhhrWiYSbqWm4zw8Uo3b+nruz2rBcgxEdWaCIvyLQzcSJVBN3OVVe2QeqS4olXqrifoYsYRD9sXOEA==}
+    engines: {node: '>=18.0.0'}
 
   '@electric-sql/pglite-socket@0.1.1':
     resolution: {integrity: sha512-p2hoXw3Z3LQHwTeikdZNsFBOvXGqKY2hk51BBw+8NKND8eoH+8LFOtW9Z8CQKmTJ2qqGYu82ipqiyFZOTTXNfw==}
@@ -829,6 +839,10 @@ packages:
     engines: {node: '>= 10'}
     cpu: [x64]
     os: [win32]
+
+  '@noble/hashes@2.2.0':
+    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
+    engines: {node: '>= 20.19.0'}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -3724,6 +3738,8 @@ snapshots:
       '@babel/helper-string-parser': 7.29.7
       '@babel/helper-validator-identifier': 7.29.7
 
+  '@edgeone/pages-blob@0.0.14': {}
+
   '@electric-sql/pglite-socket@0.1.1(@electric-sql/pglite@0.4.1)':
     dependencies:
       '@electric-sql/pglite': 0.4.1
@@ -4153,6 +4169,8 @@ snapshots:
 
   '@next/swc-win32-x64-msvc@16.2.9':
     optional: true
+
+  '@noble/hashes@2.2.0': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

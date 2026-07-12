@@ -73,8 +73,6 @@
 - 创建：`tests/zero-cost-production-contract.test.ts`
 - 创建：`src/lib/edgeone/runtime-config-core.ts`
 - 创建：`src/lib/edgeone/runtime-config.ts`
-- 修改：`src/lib/cloud/config.ts`
-- 修改：`src/lib/cloud/server-config-core.ts`
 - 修改：`.env.example`
 - 修改：`package.json`
 - 修改：`pnpm-lock.yaml`
@@ -825,6 +823,8 @@ git commit -m "feat: add free-quota EdgeOne translations"
 
 - 创建：`tests/edgeone-service-factory.test.ts`
 - 创建：`src/lib/cloud/service-factory.ts`
+- 修改：`src/lib/cloud/config.ts`
+- 修改：`src/lib/cloud/server-config-core.ts`
 - 修改：`src/lib/cloud/books.ts`
 - 修改：`src/lib/cloud/study.ts`
 - 修改：`src/lib/cloud/import.ts`
