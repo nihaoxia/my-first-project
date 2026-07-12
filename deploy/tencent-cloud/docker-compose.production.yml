@@ -34,6 +34,8 @@ services:
   web:
     <<: *app-security
     image: ${TCR_NAMESPACE}/stray-pages-web:${RELEASE_SHA}
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       NODE_ENV: production
       HOSTNAME: 0.0.0.0
@@ -43,11 +45,9 @@ services:
       MOCK_AUTH_ENABLED: "false"
       NEXT_PUBLIC_APP_URL: https://${APP_HOST}
       NEXT_PUBLIC_SUPABASE_URL: https://${API_HOST}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
-      DATABASE_URL: ${DATABASE_URL:-}
+      CLOUD_STORAGE_PROVIDER: cos
+      COS_REGION: ap-guangzhou
       TRANSLATION_MCP_URL: http://translation-mcp:8787/mcp
-      TRANSLATION_MCP_SECRET: ${TRANSLATION_MCP_SECRET:-}
       TRANSLATION_MCP_TIMEOUT_MS: "180000"
     expose:
       - "3000"
@@ -65,15 +65,13 @@ services:
   translation-mcp:
     <<: *app-security
     image: ${TCR_NAMESPACE}/stray-pages-translation-mcp:${RELEASE_SHA}
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       NODE_ENV: production
       MCP_TRANSLATION_HOST: 0.0.0.0
       MCP_TRANSLATION_PORT: "8787"
       MCP_TRUSTED_HOSTS: translation-mcp
-      TRANSLATION_MCP_SECRET: ${TRANSLATION_MCP_SECRET:-}
-      AI_BASE_URL: ${AI_BASE_URL:-}
-      AI_API_KEY: ${AI_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-}
       AI_REQUEST_TIMEOUT_MS: "60000"
     expose:
       - "8787"
@@ -95,15 +93,11 @@ services:
   sms-hook:
     <<: *app-security
     image: ${TCR_NAMESPACE}/stray-pages-sms-hook:${RELEASE_SHA}
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       NODE_ENV: production
       SMS_HOOK_PORT: "9000"
-      SMS_HOOK_SECRET: ${SMS_HOOK_SECRET:-}
-      TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID:-}
-      TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY:-}
-      TENCENT_SMS_SDK_APP_ID: ${TENCENT_SMS_SDK_APP_ID:-}
-      TENCENT_SMS_SIGN_NAME: ${TENCENT_SMS_SIGN_NAME:-}
-      TENCENT_SMS_TEMPLATE_ID: ${TENCENT_SMS_TEMPLATE_ID:-}
       TENCENT_SMS_REGION: ap-guangzhou
     expose:
       - "9000"
@@ -111,9 +105,21 @@ services:
       - /tmp:size=32m,mode=1777
     networks:
       - private-net
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:9000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
 
   supabase-gateway:
     image: ${TCR_NAMESPACE}/supabase-kong:2.8.1
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
@@ -135,16 +141,22 @@ services:
 
   supabase-auth:
     image: ${TCR_NAMESPACE}/supabase-gotrue:v2.177.0
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: "9999"
       API_EXTERNAL_URL: https://${API_HOST}
       GOTRUE_SITE_URL: https://${APP_HOST}
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: ${GOTRUE_DB_DATABASE_URL:-}
-      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
       GOTRUE_JWT_EXP: "3600"
       GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_EXTERNAL_PHONE_ENABLED: "true"
+      GOTRUE_SMS_AUTOCONFIRM: "true"
+      GOTRUE_SMS_MAX_FREQUENCY: 30s
+      GOTRUE_SMS_OTP_EXP: "300"
+      GOTRUE_SMS_OTP_LENGTH: "6"
+      GOTRUE_HOOK_SEND_SMS_URI: http://sms-hook:9000/hooks/send-sms
     expose:
       - "9999"
     networks:
@@ -152,15 +164,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      sms-hook:
+        condition: service_healthy
     restart: unless-stopped
 
   supabase-rest:
     image: ${TCR_NAMESPACE}/postgrest:v12.2.12
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
-      PGRST_DB_URI: ${POSTGREST_DB_URI:-}
       PGRST_DB_SCHEMAS: public
       PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
     expose:
       - "3000"
     networks:
@@ -172,10 +186,11 @@ services:
 
   postgres:
     image: ${TCR_NAMESPACE}/supabase-postgres:17.4.1.074
+    env_file:
+      - ${PRODUCTION_SECRETS_FILE}
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: supabase_admin
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     expose:

@@ -77,8 +77,8 @@ enable_confirmations = true
 template = "Your Stray Pages code is {{ .Code }}"
 max_frequency = "30s"
 
-# This deterministic OTP is for local Docker development only. Production uses
-# the remote Supabase project's SMS provider and never reads this file as a secret.
+# This deterministic OTP is for local Docker development only. The self-hosted production Compose
+# stack uses its private Send SMS Hook and never reads this file.
 [auth.sms.test_otp]
 "+8613800000000" = "123456"
 

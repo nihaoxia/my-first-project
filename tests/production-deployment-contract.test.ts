@@ -111,6 +111,7 @@ test("Tencent deployment examples never contain usable secrets", () => {
     "deploy/tencent-cloud/Dockerfile.translation-mcp",
     "deploy/tencent-cloud/Dockerfile.sms-hook",
     "deploy/tencent-cloud/env.example",
+    "deploy/tencent-cloud/secrets.example.env",
     "deploy/tencent-cloud/kong.yml",
   ];
   const source = files.map((path) => readFileSync(path, "utf8")).join("\n");
@@ -125,3 +126,75 @@ test("Tencent deployment examples never contain usable secrets", () => {
     assert.equal(value === "" || value.startsWith("${"), true, line);
   }
 });
+
+test("self-hosted Auth routes OTP delivery through the private Tencent SMS hook", () => {
+  const compose = readFileSync("deploy/tencent-cloud/docker-compose.production.yml", "utf8");
+  const auth = serviceBlock(compose, "supabase-auth");
+  const secretsExample = readFileSync("deploy/tencent-cloud/secrets.example.env", "utf8");
+
+  assert.match(auth, /GOTRUE_HOOK_SEND_SMS_URI:\s*http:\/\/sms-hook:9000\/hooks\/send-sms/);
+  assert.match(auth, /env_file:[\s\S]*?PRODUCTION_SECRETS_FILE/);
+  assert.match(secretsExample, /^GOTRUE_HOOK_SEND_SMS_SECRET=$/m);
+  assert.match(auth, /GOTRUE_EXTERNAL_PHONE_ENABLED:\s*"true"/);
+  assert.match(auth, /GOTRUE_SITE_URL:\s*https:\/\/\$\{APP_HOST\}/);
+  assert.match(auth, /API_EXTERNAL_URL:\s*https:\/\/\$\{API_HOST\}/);
+  assert.doesNotMatch(auth, /test_otp|123456|twilio/i);
+  assert.match(auth, /sms-hook:[\s\S]*?condition:\s*service_healthy/);
+});
+
+test("production services read secrets from a root-managed env file and web uses private COS", () => {
+  const compose = readFileSync("deploy/tencent-cloud/docker-compose.production.yml", "utf8");
+  const environmentExample = readFileSync("deploy/tencent-cloud/env.example", "utf8");
+  const secretsExample = readFileSync("deploy/tencent-cloud/secrets.example.env", "utf8");
+  const web = serviceBlock(compose, "web");
+
+  assert.match(environmentExample, /^PRODUCTION_SECRETS_FILE=/m);
+  assert.doesNotMatch(environmentExample, /^(?:SUPABASE_SERVICE_ROLE_KEY|POSTGRES_PASSWORD|SMS_HOOK_SECRET|TENCENTCLOUD_SECRET_KEY)=/m);
+  for (const service of ["web", "translation-mcp", "sms-hook", "supabase-gateway", "supabase-auth", "supabase-rest", "postgres"]) {
+    assert.match(serviceBlock(compose, service), /env_file:[\s\S]*?PRODUCTION_SECRETS_FILE/);
+  }
+  assert.match(web, /CLOUD_STORAGE_PROVIDER:\s*cos/);
+  assert.match(web, /COS_REGION:\s*ap-guangzhou/);
+  assert.doesNotMatch(compose, /\$\{(?:SUPABASE_SERVICE_ROLE_KEY|POSTGRES_PASSWORD|SMS_HOOK_SECRET|TENCENTCLOUD_SECRET_KEY)(?::-[^}]*)?\}/);
+  for (const key of [
+    "COS_SECRET_ID",
+    "COS_SECRET_KEY",
+    "COS_BUCKET",
+    "DATABASE_URL",
+    "GOTRUE_HOOK_SEND_SMS_SECRET",
+    "SMS_HOOK_SECRET",
+    "TENCENTCLOUD_SECRET_ID",
+    "TENCENTCLOUD_SECRET_KEY",
+  ]) assert.match(secretsExample, new RegExp(`^${key}=$`, "m"));
+});
+
+test("MCP, SMS and database remain private while PostgreSQL is durable and health-gated", () => {
+  const compose = readFileSync("deploy/tencent-cloud/docker-compose.production.yml", "utf8");
+  for (const service of ["translation-mcp", "sms-hook", "postgres"]) {
+    const block = serviceBlock(compose, service);
+    assert.match(block, /networks:[\s\S]*?- private-net/);
+    assert.doesNotMatch(block, /- edge-net/);
+    assert.doesNotMatch(block, /ports:/);
+  }
+  const postgres = serviceBlock(compose, "postgres");
+  assert.match(postgres, /postgres-data:\/var\/lib\/postgresql\/data/);
+  assert.match(postgres, /healthcheck:/);
+  assert.match(postgres, /pg_isready/);
+  assert.match(postgres, /stop_grace_period:\s*60s/);
+  assert.doesNotMatch(compose, /^  (?:studio|analytics):/m);
+});
+
+test("Kong exposes only Auth and REST and local fixed OTP is explicitly non-production", () => {
+  const kong = readFileSync("deploy/tencent-cloud/kong.yml", "utf8");
+  const localConfig = readFileSync("supabase/config.toml", "utf8");
+  assert.deepEqual([...kong.matchAll(/^  - name:\s*([^\s]+)$/gm)].map((match) => match[1]), ["auth", "rest"]);
+  assert.match(localConfig, /local Docker development only/i);
+  assert.match(localConfig, /self-hosted production Compose/i);
+  assert.doesNotMatch(localConfig, /remote Supabase project/i);
+});
+
+function serviceBlock(compose: string, service: string) {
+  const match = compose.match(new RegExp(`^  ${service}:[\\s\\S]*?(?=^  [a-z][a-z0-9-]*:|^networks:|^volumes:)`, "m"));
+  assert.ok(match, `missing ${service} service block`);
+  return match[0];
+}
