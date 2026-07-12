@@ -2,122 +2,81 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { createLoginActionOrchestrator } from "../src/lib/auth/login-action-core.ts";
+let subject: typeof import("../src/lib/auth/account-action-core.ts") | undefined;
+try { subject = await import("../src/lib/auth/account-action-core.ts"); } catch { /* red */ }
+function api() { if (!subject) assert.fail("account-action-core must be implemented"); return subject; }
 
-const supabaseEnv = {
-  NODE_ENV: "production",
-  CLOUD_MODE: "required",
-  AUTH_MODE: "supabase",
-  NEXT_PUBLIC_SUPABASE_URL: "https://project.supabase.co",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
-};
-
-test("orchestrates Supabase send and verify while preserving only a safe next path", async () => {
-  const calls: string[] = [];
-  const core = createLoginActionOrchestrator({
-    async getSupabaseService() {
-      return {
-        async sendOtp(phone) { calls.push(`send:${phone}`); return { ok: true }; },
-        async verifyOtp(phone, token) { calls.push(`verify:${phone}:${token}`); return { ok: true }; },
-        async signOut() { calls.push("logout"); return { ok: true }; },
-      };
+function service(calls: string[]) {
+  return {
+    async register(username: string, password: string) {
+      calls.push(`register:${username}:${password}`);
+      return { userId: "user", accountLabel: username, recoveryCode: "r".repeat(43), sessionToken: "s".repeat(43) };
     },
-    async setMockSession() { throw new Error("mock must not run"); },
-    async clearMockSession() { throw new Error("mock must not run"); },
-  });
-  assert.deepEqual(await core.send({ phone: "13811112222", next: "/upload?step=chapters" }, supabaseEnv), {
-    destination: "/login?sent=1&next=%2Fupload%3Fstep%3Dchapters",
-  });
-  assert.deepEqual(await core.verify({ phone: "13811112222", token: "654321", next: "/upload?step=chapters" }, supabaseEnv), {
-    destination: "/upload?step=chapters",
-  });
-  assert.deepEqual(calls, ["send:13811112222", "verify:13811112222:654321"]);
-});
-
-test("keeps provider and configuration errors stable and secret-free", async () => {
-  const secret = "provider-secret";
-  const core = createLoginActionOrchestrator({
-    async getSupabaseService() {
-      return {
-        async sendOtp() { return { ok: false, error: { code: "OTP_SEND_FAILED", message: secret, retryable: true } }; },
-        async verifyOtp() { throw new Error(secret); },
-        async signOut() { throw new Error(secret); },
-      };
+    async login(username: string, password: string) {
+      calls.push(`login:${username}:${password}`);
+      return { userId: "user", accountLabel: username, sessionToken: "s".repeat(43) };
     },
-    async setMockSession() { throw new Error(secret); },
-    async clearMockSession() { throw new Error(secret); },
-  });
-  const outcomes = [
-    await core.send({ phone: "13811112222", next: "https://evil.example" }, supabaseEnv),
-    await core.verify({ phone: "13811112222", token: "123456", next: "/library" }, supabaseEnv),
-    await core.logout(supabaseEnv),
-    await core.send({ phone: "13811112222", next: "/library" }, { NODE_ENV: "production" }),
-  ];
-  assert.deepEqual(outcomes, [
-    { destination: "/login?error=OTP_SEND_FAILED" },
-    { destination: "/login?error=OTP_INVALID" },
-    { destination: "/me?authError=SIGN_OUT_FAILED" },
-    { destination: "/login?error=CLOUD_NOT_CONFIGURED" },
-  ]);
-  const serialized = JSON.stringify(outcomes);
-  for (const sensitive of [secret, "13811112222", "123456", "evil.example"]) {
-    assert.equal(serialized.includes(sensitive), false);
-  }
-});
-
-test("only treats logout as successful after the provider succeeds", async () => {
-  let result: { ok: true } | { ok: false; error: { code: "SIGN_OUT_FAILED"; message: string; retryable: true } } = {
-    ok: false,
-    error: { code: "SIGN_OUT_FAILED", message: "raw", retryable: true },
+    async recover(username: string, recoveryCode: string, password: string) {
+      calls.push(`recover:${username}:${recoveryCode}:${password}`);
+      return { userId: "user", accountLabel: username, recoveryCode: "n".repeat(43), sessionToken: "s".repeat(43) };
+    },
+    async logout(token: string) { calls.push(`logout:${token}`); },
   };
-  const core = createLoginActionOrchestrator({
-    async getSupabaseService() {
-      return {
-        async sendOtp() { return { ok: true }; },
-        async verifyOtp() { return { ok: true }; },
-        async signOut() { return result; },
-      };
-    },
-    async setMockSession() {},
-    async clearMockSession() {},
-  });
-  assert.deepEqual(await core.logout(supabaseEnv), { destination: "/me?authError=SIGN_OUT_FAILED" });
-  result = { ok: true };
-  assert.deepEqual(await core.logout(supabaseEnv), { destination: "/login" });
-});
+}
 
-test("mock send verify and logout require both mock mode and explicit enablement", async () => {
+test("register, login, recovery and logout preserve only safe navigation state", async () => {
   const calls: string[] = [];
-  const core = createLoginActionOrchestrator({
-    async getSupabaseService() { throw new Error("Supabase must not run"); },
-    async setMockSession(phone) { calls.push(`set:${phone}`); },
-    async clearMockSession() { calls.push("clear"); },
+  const cookies: string[] = [];
+  const core = api().createAccountActionOrchestrator({
+    service: service(calls),
+    setSession(token: string) { cookies.push(`set:${token}`); },
+    clearSession() { cookies.push("clear"); },
   });
-  const enabled = { NODE_ENV: "development", CLOUD_MODE: "optional", AUTH_MODE: "mock", MOCK_AUTH_ENABLED: "true" };
-  assert.deepEqual(await core.send({ phone: "13811112222", next: "/library" }, enabled), { destination: "/login?sent=1" });
-  assert.deepEqual(await core.verify({ phone: "13811112222", token: "123456", next: "/library" }, enabled), { destination: "/library" });
-  assert.deepEqual(await core.logout(enabled), { destination: "/login" });
-  assert.deepEqual(calls, ["set:13811112222", "clear"]);
-
-  assert.deepEqual(await core.send({ phone: "13811112222", next: "/library" }, { ...enabled, MOCK_AUTH_ENABLED: undefined }), {
-    destination: "/login?error=AUTH_MODE_FORBIDDEN",
+  assert.deepEqual(await core.register({ username: "reader_01", password: "password value", next: "/upload" }), {
+    ok: true, destination: "/upload", recoveryCode: "r".repeat(43), accountLabel: "reader_01",
   });
+  assert.deepEqual(await core.login({ username: "reader_01", password: "password value", next: "https://evil.example" }), {
+    ok: true, destination: "/library",
+  });
+  assert.deepEqual(await core.recover({ username: "reader_01", recoveryCode: "old", newPassword: "new password value", next: "/study/notes" }), {
+    ok: true, destination: "/study/notes", recoveryCode: "n".repeat(43), accountLabel: "reader_01",
+  });
+  await core.logout("t".repeat(43));
+  assert.deepEqual(cookies, [`set:${"s".repeat(43)}`, `set:${"s".repeat(43)}`, `set:${"s".repeat(43)}`, "clear"]);
+  assert.equal(JSON.stringify(await core.login({ username: "reader_01", password: "password value", next: "//evil.example" })).includes("evil.example"), false);
 });
 
-test("server actions are thin redirects over the tested orchestrator and the page keeps two-step state", () => {
+test("credential and provider failures are stable and never echo secrets", async () => {
+  const secret = "raw-provider-secret";
+  const broken = service([]);
+  broken.login = async () => { throw Object.assign(new Error(secret), { code: "INVALID_CREDENTIALS" }); };
+  broken.register = async () => { throw Object.assign(new Error(secret), { code: "USERNAME_UNAVAILABLE" }); };
+  broken.recover = async () => { throw new Error(secret); };
+  const core = api().createAccountActionOrchestrator({ service: broken, setSession() {}, clearSession() {} });
+  const results = [
+    await core.login({ username: "secret-user", password: secret }),
+    await core.register({ username: "secret-user", password: secret }),
+    await core.recover({ username: "secret-user", recoveryCode: secret, newPassword: secret }),
+  ];
+  assert.deepEqual(results.map((result) => result.error), [
+    "INVALID_CREDENTIALS", "USERNAME_UNAVAILABLE", "INVALID_CREDENTIALS",
+  ]);
+  assert.equal(JSON.stringify(results).includes(secret), false);
+  assert.equal(JSON.stringify(results).includes("secret-user"), false);
+});
+
+test("server actions and page expose username account flows without SMS or Supabase", () => {
   const actions = readFileSync("src/app/login/actions.ts", "utf8");
-  const page = readFileSync("src/app/login/page.tsx", "utf8");
-  const mePage = readFileSync("src/app/me/page.tsx", "utf8");
-  assert.match(actions, /createLoginActionOrchestrator/);
-  assert.match(actions, /orchestrator\.send/);
-  assert.match(actions, /orchestrator\.verify/);
-  assert.match(actions, /orchestrator\.logout/);
-  assert.doesNotMatch(actions, /signOut\(\)[^\n;]*;\s*\n\s*redirect\("\/login"\)/);
-  assert.match(page, /params\?\.sent === "1"/);
-  assert.match(page, /params\?\.error/);
-  assert.match(page, /name="next"/);
-  assert.match(page, /action=\{sendLoginOtp\}/);
-  assert.match(page, /action=\{verifyLoginOtp\}/);
-  assert.match(mePage, /authError/);
-  assert.match(mePage, /退出登录失败，你仍处于登录状态/);
+  const page = ["src/app/login/page.tsx", "src/app/login/account-forms.tsx"]
+    .map((path) => readFileSync(path, "utf8")).join("\n");
+  for (const name of ["registerAccount", "loginAccount", "recoverAccount", "logoutSession"]) {
+    assert.match(actions, new RegExp(`export async function ${name}`));
+  }
+  assert.match(actions, /getEdgeOneAuthService/);
+  assert.doesNotMatch(actions, /getSupabaseAuthService|sendOtp|verifyOtp/);
+  assert.match(page, /name="username"/);
+  assert.match(page, /name="password"/);
+  assert.match(page, /name="recoveryCode"/);
+  assert.match(page, /恢复码只显示这一次/);
+  assert.doesNotMatch(page, /手机号|短信|验证码|type="tel"/);
 });

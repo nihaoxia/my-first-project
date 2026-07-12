@@ -23,7 +23,7 @@ export default async function TranslationTasksPage({
   const { translationId } = await params;
   const session = await getAppSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(`/translations/${translationId}/tasks`)}`);
-  if (session.authMode === "supabase") return <AppShell requireAuth><CloudTranslationTasks translationId={translationId} /></AppShell>;
+  if (process.env.AUTH_MODE === "edgeone") return <AppShell requireAuth><CloudTranslationTasks translationId={translationId} /></AppShell>;
 
   if (translationId.startsWith("local-translation-")) {
     return (

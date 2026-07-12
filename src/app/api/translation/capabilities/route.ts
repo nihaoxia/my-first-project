@@ -6,7 +6,7 @@ import { handleTranslationCapabilities } from "@/lib/translation/translation-api
 export async function GET() {
   const session = await getAppSession();
   const result = await handleTranslationCapabilities({
-    sessionScope: session?.userId ?? null,
+    sessionScope: session?.user.id ?? null,
     env: process.env,
   });
 

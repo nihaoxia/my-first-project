@@ -28,15 +28,15 @@ test("does not link translation progress to the demo task before a draft exists"
   assert.equal(panelSource.includes("useState(routes.tasks)"), false);
 });
 
-test("login inputs expose labels and mobile-friendly autofill metadata", () => {
-  const loginSource = readFileSync("src/app/login/page.tsx", "utf8");
+test("login inputs expose username, password and recovery autofill metadata", () => {
+  const loginSource = ["src/app/login/page.tsx", "src/app/login/account-forms.tsx"]
+    .map((path) => readFileSync(path, "utf8")).join("\n");
 
-  assert.equal(loginSource.includes('htmlFor="login-phone"'), true);
-  assert.equal(loginSource.includes('id="login-phone"'), true);
-  assert.equal(loginSource.includes('type="tel"'), true);
-  assert.equal(loginSource.includes('autoComplete="tel"'), true);
-  assert.equal(loginSource.includes('htmlFor="login-code"'), true);
-  assert.equal(loginSource.includes('autoComplete="one-time-code"'), true);
+  assert.equal(loginSource.includes('autoComplete="username"'), true);
+  assert.equal(loginSource.includes('autoComplete="current-password"'), true);
+  assert.equal(loginSource.includes('autoComplete="new-password"'), true);
+  assert.equal(loginSource.includes('name="recoveryCode"'), true);
+  assert.equal(/手机号|短信|验证码/.test(loginSource), false);
 });
 
 test("local translation pricing is labeled as non-billing demonstration data", () => {

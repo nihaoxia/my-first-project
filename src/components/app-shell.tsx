@@ -37,14 +37,14 @@ export async function AppShell({
   requireAuth?: boolean;
 }) {
   const session = await getAppSession();
-  const usableSession = session && session.role !== "BANNED" ? session : null;
+  const usableSession = session;
   if (requireAuth && !usableSession) redirect("/login");
   const profile = buildMockUserProfile(
     usableSession
-      ? { phone: usableSession.phone, role: usableSession.role === "ADMIN" ? "ADMIN" : "USER" }
+      ? { accountLabel: usableSession.user.accountLabel, role: usableSession.role }
       : null,
   );
-  const localStorageScope = usableSession ? deriveLocalStorageScope(usableSession.userId) : undefined;
+  const localStorageScope = usableSession ? deriveLocalStorageScope(usableSession.user.id) : undefined;
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || shouldShowAdminNavigation(session));
 
   return (
@@ -83,7 +83,7 @@ export async function AppShell({
             <div className="flex shrink-0 items-center gap-3">
               <div className="hidden min-w-0 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2 lg:flex">
                 <CircleUserRound aria-hidden="true" size={16} />
-                <span className="text-sm font-medium">{profile.maskedPhone}</span>
+                <span className="text-sm font-medium">{profile.accountLabel}</span>
                 <span className="rounded-sm bg-[var(--primary)] px-1.5 py-0.5 text-xs text-[var(--primary-foreground)]">
                   {profile.roleLabel}
                 </span>

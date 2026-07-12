@@ -1,41 +1,78 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { createLoginActionOrchestrator } from "@/lib/auth/login-action-core";
-import { clearMockSession, setMockSession } from "@/lib/auth/mock-session";
-import { getSupabaseAuthService } from "@/lib/auth/supabase-auth-service";
+import { createAccountActionOrchestrator } from "@/lib/auth/account-action-core";
+import { getEdgeOneAuthService } from "@/lib/auth/auth-service";
+import {
+  clearEdgeOneSessionCookie,
+  readEdgeOneSessionCookie,
+  setEdgeOneSessionCookie,
+} from "@/lib/auth/edgeone-cookie";
 
-const orchestrator = createLoginActionOrchestrator({
-  getSupabaseService: getSupabaseAuthService,
-  setMockSession,
-  clearMockSession,
-});
+export type AccountActionState = {
+  ok: boolean;
+  error?: string;
+  recoveryCode?: string;
+  accountLabel?: string;
+  destination?: string;
+};
 
-export async function sendLoginOtp(formData: FormData) {
-  const outcome = await orchestrator.send(
-    {
-      phone: String(formData.get("phone") ?? ""),
-      next: String(formData.get("next") ?? ""),
-    },
-    process.env,
-  );
-  redirect(outcome.destination);
+async function getOrchestrator() {
+  const cookieStore = await cookies();
+  return {
+    cookieStore,
+    orchestrator: createAccountActionOrchestrator({
+      service: getEdgeOneAuthService(),
+      setSession(token) { setEdgeOneSessionCookie(cookieStore, token); },
+      clearSession() { clearEdgeOneSessionCookie(cookieStore); },
+    }),
+  };
 }
 
-export async function verifyLoginOtp(formData: FormData) {
-  const outcome = await orchestrator.verify(
-    {
-      phone: String(formData.get("phone") ?? ""),
-      token: String(formData.get("code") ?? ""),
-      next: String(formData.get("next") ?? ""),
-    },
-    process.env,
-  );
-  redirect(outcome.destination);
+export async function registerAccount(
+  _previous: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const { orchestrator } = await getOrchestrator();
+  return orchestrator.register({
+    username: String(formData.get("username") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    next: String(formData.get("next") ?? ""),
+  });
 }
 
-export async function logoutSession() {
-  const outcome = await orchestrator.logout(process.env);
-  redirect(outcome.destination);
+export async function loginAccount(
+  _previous: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const { orchestrator } = await getOrchestrator();
+  const result = await orchestrator.login({
+    username: String(formData.get("username") ?? ""),
+    password: String(formData.get("password") ?? ""),
+    next: String(formData.get("next") ?? ""),
+  });
+  if (result.ok) redirect(result.destination);
+  return result;
+}
+
+export async function recoverAccount(
+  _previous: AccountActionState,
+  formData: FormData,
+): Promise<AccountActionState> {
+  const { orchestrator } = await getOrchestrator();
+  return orchestrator.recover({
+    username: String(formData.get("username") ?? ""),
+    recoveryCode: String(formData.get("recoveryCode") ?? ""),
+    newPassword: String(formData.get("newPassword") ?? ""),
+    next: String(formData.get("next") ?? ""),
+  });
+}
+
+export async function logoutSession(): Promise<void> {
+  const { cookieStore, orchestrator } = await getOrchestrator();
+  const token = readEdgeOneSessionCookie(cookieStore);
+  const result = await orchestrator.logout(token);
+  redirect(result.destination);
 }

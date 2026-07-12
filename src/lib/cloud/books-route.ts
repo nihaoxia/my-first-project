@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getAppSession } from "../auth/app-session";
+import { getRouteSession } from "../auth/app-session";
 import { getCloudBooksService } from "./books";
 import type { CloudBooksRouteDependencies } from "./books-route-core";
 
@@ -13,4 +13,4 @@ const service: CloudBooksRouteDependencies["service"] = {
   getDownloadUrl: (userId, bookId) => getCloudBooksService().getDownloadUrl(userId, bookId),
 };
 
-export const cloudBooksRouteDependencies: CloudBooksRouteDependencies = { getSession: getAppSession, service };
+export const cloudBooksRouteDependencies: CloudBooksRouteDependencies = { getSession: getRouteSession, service };

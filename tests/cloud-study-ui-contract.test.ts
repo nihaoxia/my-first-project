@@ -8,7 +8,7 @@ test("study pages resolve one authoritative persistence mode and load cloud rows
   for (const page of ["src/app/study/vocabulary/page.tsx", "src/app/study/sentences/page.tsx", "src/app/study/notes/page.tsx"]) {
     const text = source(page);
     assert.match(text, /resolveCloudPersistenceMode\(getCloudServerConfig\(\)\)/);
-    assert.match(text, /getCloudStudyService\(\)\.list\(session\.userId/);
+    assert.match(text, /getCloudStudyService\(\)\.list\(session\.user\.id/);
     assert.match(text, /initialNextCursor/);
     assert.match(text, /persistence=\{persistence\}/);
   }

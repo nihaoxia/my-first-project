@@ -45,7 +45,7 @@ const bookTiles = [
 export default async function LibraryPage() {
   const persistenceMode = resolveCloudPersistenceMode(getCloudServerConfig());
   const session = persistenceMode === "cloud" ? await getAppSession() : null;
-  const cloudBooks = persistenceMode === "cloud" && session?.authMode === "supabase" ? await getCloudBooksService().list(session.userId) : null;
+  const cloudBooks = persistenceMode === "cloud" && session ? await getCloudBooksService().list(session.user.id) : null;
   const visibleBookTiles = cloudBooks ? cloudBooks.map((book, index) => ({
     id: book.id, title: book.title, detail: `${book.chapterCount} 章 / TXT`,
     href: `/books/${encodeURIComponent(book.id)}/chapters`,

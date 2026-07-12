@@ -14,16 +14,16 @@ import { CloudStudyError, listAllStudyItemsForExport } from "@/lib/cloud/study-c
 export default async function VocabularyPage() {
   const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
   const session = persistence === "cloud" ? await getAppSession() : null;
-  const cloud = persistence === "cloud" && session?.authMode === "supabase";
-  const page = cloud ? await getCloudStudyService().list(session.userId, { kind: "vocabulary" }) : { items: [], nextCursor: null };
+  const cloud = persistence === "cloud" && Boolean(session);
+  const page = cloud && session ? await getCloudStudyService().list(session.user.id, { kind: "vocabulary" }) : { items: [], nextCursor: null };
   const rows = page.items;
-  const books = cloud ? await getCloudBooksService().list(session.userId) : [];
+  const books = cloud && session ? await getCloudBooksService().list(session.user.id) : [];
   const initialItems = cloud ? rows.map((row) => ({ id: row.id as string, term: row.term as string, explanation: row.explanation as string, contextualMean: (row.contextualMean as string | null) ?? "", sourceSentence: (row.sourceSentence as string | null) ?? "", note: (row.note as string | null) ?? "", bookId: row.originalBookId as string, bookTitle: row.bookTitle as string, chapterId: (row.chapterId as string | null) ?? "", chapterTitle: (row.chapterTitle as string | null) ?? "", sourceLabel: `${row.bookTitle as string} · ${(row.chapterTitle as string | null) ?? "整本书"}` })) : persistence === "local" ? stageSevenVocabularyView.items : [];
   let exportData = stageEightVocabularyCsvExport;
   let exportLimitReached = false;
   if (cloud) {
     try {
-      const exportRows = await listAllStudyItemsForExport(getCloudStudyService(), session.userId, "vocabulary");
+      const exportRows = await listAllStudyItemsForExport(getCloudStudyService(), session!.user.id, "vocabulary");
       const exportItems = exportRows.map((row) => ({ id: row.id as string, term: row.term as string, explanation: row.explanation as string, contextualMean: (row.contextualMean as string | null) ?? "", sourceSentence: (row.sourceSentence as string | null) ?? "", note: (row.note as string | null) ?? "", bookId: row.originalBookId as string, bookTitle: row.bookTitle as string, chapterId: (row.chapterId as string | null) ?? "", chapterTitle: (row.chapterTitle as string | null) ?? "", sourceLabel: `${row.bookTitle as string} · ${(row.chapterTitle as string | null) ?? "整本书"}` }));
       exportData = buildVocabularyCsvExport({ bookTitle: "cloud-library", items: exportItems });
     } catch (error) { if (error instanceof CloudStudyError && error.code === "STUDY_EXPORT_LIMIT") exportLimitReached = true; else throw error; }

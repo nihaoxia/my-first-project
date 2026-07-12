@@ -7,7 +7,6 @@ import { getCloudServerConfig } from "@/lib/cloud/server-config";
 import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
 import { getCloudStudyService } from "@/lib/cloud/study";
 import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-panel";
-import { deriveMockUserId } from "@/lib/auth/app-session-core";
 
 const noteItems: StudyNote[] = [
   {
@@ -31,8 +30,8 @@ const noteItems: StudyNote[] = [
 export default async function NotesPage() {
   const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
   const session = persistence === "cloud" ? await getAppSession() : null;
-  const cloud = persistence === "cloud" && session?.authMode === "supabase";
-  const page = cloud ? await getCloudStudyService().list(session.userId, { kind: "note" }) : { items: [], nextCursor: null };
+  const cloud = persistence === "cloud" && Boolean(session);
+  const page = cloud && session ? await getCloudStudyService().list(session.user.id, { kind: "note" }) : { items: [], nextCursor: null };
   const rows = page.items;
   const visibleNotes: StudyNote[] = cloud ? rows.map((row) => ({ id: row.id as string, title: row.title as string, content: row.content as string, source: (row.targetLabel as string) || "自由笔记", updatedAt: new Date(row.updatedAt as Date).toLocaleString("zh-CN") })) : persistence === "local" ? noteItems : [];
   return (
@@ -44,7 +43,7 @@ export default async function NotesPage() {
       />
 
       <NotesWorkspace initialNotes={visibleNotes} initialNextCursor={page.nextCursor} persistence={persistence} />
-      {cloud ? <CloudLocalImportPanel legacyMockUserId={deriveMockUserId(session.phone)} /> : null}
+      {cloud && session ? <CloudLocalImportPanel legacyMockUserId={session.user.id} /> : null}
     </AppShell>
   );
 }

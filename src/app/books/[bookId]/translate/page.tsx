@@ -19,12 +19,12 @@ export default async function CreateTranslationPage({
   const { bookId } = await params;
   const session = await getAppSession();
   if (!session) redirect(`/login?next=${encodeURIComponent(`/books/${bookId}/translate`)}`);
-  const localUserId = session.userId;
+  const localUserId = session.user.id;
 
-  if (session.authMode === "supabase") {
+  if (process.env.AUTH_MODE === "edgeone") {
     let cloudBook;
     try {
-      cloudBook = await getCloudBooksService().get(session.userId, bookId);
+      cloudBook = await getCloudBooksService().get(session.user.id, bookId);
     } catch (error) { if (error instanceof CloudBookError && error.code === "BOOK_NOT_FOUND") notFound(); throw error; }
     return <AppShell requireAuth><CloudTranslationCreate bookId={cloudBook.id} bookTitle={cloudBook.title} /></AppShell>;
   }

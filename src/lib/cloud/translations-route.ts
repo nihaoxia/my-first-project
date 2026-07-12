@@ -1,8 +1,8 @@
 import "server-only";
-import { getAppSession } from "../auth/app-session";
+import { getRouteSession } from "../auth/app-session";
 import { getCloudTranslationsService } from "./translations";
 export const cloudTranslationsRouteDependencies = {
-  getSession: getAppSession,
+  getSession: getRouteSession,
   service: {
     list: (...args: Parameters<ReturnType<typeof getCloudTranslationsService>["list"]>) => getCloudTranslationsService().list(...args),
     create: (...args: Parameters<ReturnType<typeof getCloudTranslationsService>["create"]>) => getCloudTranslationsService().create(...args),

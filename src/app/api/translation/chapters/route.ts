@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
   const body = await readJsonBody(request);
   const result = await handleTranslateChapter({
     body,
-    sessionScope: session?.userId ?? null,
+    sessionScope: session?.user.id ?? null,
     origin: request.headers.get("origin"),
     appUrl: process.env.NEXT_PUBLIC_APP_URL,
     env: process.env,

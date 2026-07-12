@@ -50,10 +50,10 @@ export default async function ChapterPreviewPage({
   }
 
   const session = await getAppSession();
-  if (session?.authMode === "supabase") {
+  if (session && process.env.AUTH_MODE === "edgeone") {
     let cloudBook;
     try {
-      cloudBook = await getCloudBooksService().get(session.userId, bookId);
+      cloudBook = await getCloudBooksService().get(session.user.id, bookId);
     } catch { notFound(); }
     return (
       <AppShell requireAuth>

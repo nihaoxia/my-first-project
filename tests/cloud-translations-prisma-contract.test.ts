@@ -76,5 +76,5 @@ test("long task route stays shorter than the ten-minute lease and the cloud read
   const route = readFileSync("src/app/api/cloud/translations/[translationId]/tasks/[taskId]/route.ts", "utf8");
   const reader = readFileSync("src/app/reader/page.tsx", "utf8");
   assert.match(route, /maxDuration = 360/);
-  assert.match(reader, /if \(session\.authMode === "supabase"\) redirect\(routes\.library\)/);
+  assert.match(reader, /if \(process\.env\.AUTH_MODE === "edgeone"\) redirect\(routes\.library\)/);
 });

@@ -17,10 +17,10 @@ export default async function ReaderPage({
   const session = await getAppSession();
   if (!session) redirect(`/login?next=${encodeURIComponent("/reader")}`);
 
-  if (session.authMode === "supabase" && localTranslationId) {
-    return <AppShell wide requireAuth><CloudTranslationReader userId={session.userId} translationId={localTranslationId} chapterId={resolvedSearchParams?.chapterId} /></AppShell>;
+  if (process.env.AUTH_MODE === "edgeone" && localTranslationId) {
+    return <AppShell wide requireAuth><CloudTranslationReader userId={session.user.id} translationId={localTranslationId} chapterId={resolvedSearchParams?.chapterId} /></AppShell>;
   }
-  if (session.authMode === "supabase") redirect(routes.library);
+  if (process.env.AUTH_MODE === "edgeone") redirect(routes.library);
 
   if (localTranslationId?.startsWith("local-translation-")) {
     return (

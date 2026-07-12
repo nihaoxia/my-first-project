@@ -1,25 +1,25 @@
-import {
-  resolveCloudConfig,
-  type CloudConfigEnvironment,
-} from "../cloud/config.ts";
 import { isValidMainlandChinaPhone, normalizePhoneInput } from "./mock-policy.ts";
 
 export type AppRole = "USER" | "ADMIN" | "BANNED";
 
 export type AppSession = {
-  userId: string;
-  phone: string;
-  role: AppRole;
-  authMode: "supabase" | "mock";
+  user: {
+    id: string;
+    accountLabel: string;
+  };
+  role: "USER" | "ADMIN";
 };
 
-type AuthenticatedUser = { id: string; [key: string]: unknown };
-type UserProfile = { phone: unknown; role: unknown };
+type EdgeOneSession = {
+  userId: string;
+  accountLabel: string;
+  role: "USER" | "ADMIN";
+};
+
 type MockSession = { phone: string; role: "USER" | "ADMIN" };
 
 export type AppSessionDependencies = {
-  getUser(): Promise<AuthenticatedUser | null>;
-  getProfile(userId: string): Promise<UserProfile | null>;
+  validateEdgeOneSession(): Promise<EdgeOneSession | null>;
   getMockSession?(): Promise<MockSession | null>;
 };
 
@@ -34,62 +34,50 @@ export class AppSessionConfigurationError extends Error {
 }
 
 export async function resolveAppSession(
-  environment: CloudConfigEnvironment,
+  environment: Record<string, string | undefined>,
   dependencies: AppSessionDependencies,
 ): Promise<AppSession | null> {
-  const configResult = resolveCloudConfig(environment);
-  if (!configResult.ok) {
-    throw new AppSessionConfigurationError(configResult.error.code);
-  }
+  const production = environment.NODE_ENV?.trim() === "production";
+  const authMode = environment.AUTH_MODE?.trim();
 
-  if (configResult.config.authMode === "mock") {
-    const mockSession = await dependencies.getMockSession?.();
-    if (!mockSession || !isValidMainlandChinaPhone(mockSession.phone)) return null;
-    const phone = normalizePhoneInput(mockSession.phone);
+  if (authMode === "mock") {
+    if (production || environment.MOCK_AUTH_ENABLED?.trim() !== "true") {
+      throw new AppSessionConfigurationError("AUTH_MODE_FORBIDDEN");
+    }
+    const mock = await dependencies.getMockSession?.();
+    if (!mock || !isValidMainlandChinaPhone(mock.phone)) return null;
+    const phone = normalizePhoneInput(mock.phone);
     return {
-      userId: deriveMockUserId(phone),
-      phone,
-      role: mockSession.role,
-      authMode: "mock",
+      user: {
+        id: deriveMockUserId(phone),
+        accountLabel: `本地用户 ${phone.slice(-4)}`,
+      },
+      role: mock.role,
     };
   }
 
-  if (!configResult.config.configured) {
-    throw new AppSessionConfigurationError("CLOUD_NOT_CONFIGURED");
+  if (authMode !== "edgeone") {
+    throw new AppSessionConfigurationError("AUTH_MODE_FORBIDDEN");
   }
 
-  const user = await dependencies.getUser();
-  if (!user || !isUuid(user.id)) return null;
-  const profile = await dependencies.getProfile(user.id);
-  const phone = profile && typeof profile.phone === "string"
-    ? normalizeProfilePhone(profile.phone)
-    : null;
-  if (!profile || !phone) {
-    return null;
-  }
-  if (profile.role !== "USER" && profile.role !== "ADMIN" && profile.role !== "BANNED") {
-    return null;
-  }
-  if (profile.role === "BANNED") return null;
+  const session = await dependencies.validateEdgeOneSession();
+  if (
+    !session ||
+    !isUuid(session.userId) ||
+    !/^[a-z0-9_]{3,32}$/u.test(session.accountLabel) ||
+    (session.role !== "USER" && session.role !== "ADMIN")
+  ) return null;
 
   return {
-    userId: user.id,
-    phone,
-    role: profile.role,
-    authMode: "supabase",
+    user: { id: session.userId, accountLabel: session.accountLabel },
+    role: session.role,
   };
 }
 
-function isUuid(value: string) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(value);
 }
 
-export function deriveMockUserId(phone: string) {
+export function deriveMockUserId(phone: string): string {
   return `00000000-0000-4000-8000-0${phone}`;
-}
-
-function normalizeProfilePhone(value: string) {
-  const normalized = normalizePhoneInput(value).replace(/[\s()-]/g, "");
-  const mainland = normalized.startsWith("+86") ? normalized.slice(3) : normalized;
-  return isValidMainlandChinaPhone(mainland) ? mainland : null;
 }
