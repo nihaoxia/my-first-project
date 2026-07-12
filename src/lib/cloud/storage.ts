@@ -2,6 +2,7 @@ import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
 import { getCloudServerConfig } from "./server-config";
+import { createCosStorageProviderFromConfig } from "./cos-storage-provider";
 import { createCloudStorageService, isSupabaseStorageNotFoundError } from "./storage-core";
 
 export { CloudStorageError } from "./storage-core";
@@ -13,9 +14,10 @@ export function getOriginalBookStorage() {
     throw Object.assign(new Error(code), { code });
   }
 
-  if (result.config.storageProvider !== "supabase") {
-    throw Object.assign(new Error("CLOUD_NOT_CONFIGURED"), {
-      code: "CLOUD_NOT_CONFIGURED",
+  if (result.config.storageProvider === "cos") {
+    return createCloudStorageService({
+      bucket: result.config.cosBucket,
+      provider: createCosStorageProviderFromConfig(result.config),
     });
   }
 
