@@ -22,6 +22,7 @@
     "sms-hook:start": "node dist/sms-hook/index.js",
     "smoke:production": "node scripts/production-smoke.mjs",
     "verify:deployment": "node --experimental-strip-types --test tests/production-deployment-contract.test.ts tests/production-smoke.test.ts",
+    "release:tencent": "sh deploy/tencent-cloud/release.sh",
     "supabase:start": "pnpm dlx supabase@2.90.0 start",
     "supabase:stop": "pnpm dlx supabase@2.90.0 stop",
     "supabase:status": "pnpm dlx supabase@2.90.0 status",
