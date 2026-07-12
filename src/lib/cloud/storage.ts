@@ -13,6 +13,12 @@ export function getOriginalBookStorage() {
     throw Object.assign(new Error(code), { code });
   }
 
+  if (result.config.storageProvider !== "supabase") {
+    throw Object.assign(new Error("CLOUD_NOT_CONFIGURED"), {
+      code: "CLOUD_NOT_CONFIGURED",
+    });
+  }
+
   const { supabaseUrl, supabaseServiceRoleKey, originalBooksBucket } = result.config;
   const client = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: { autoRefreshToken: false, persistSession: false },
