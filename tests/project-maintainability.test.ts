@@ -36,3 +36,29 @@ test("documents local setup and runs the full verification stack in CI", () => {
   assert.equal(workflow.includes("pnpm typecheck"), true);
   assert.equal(workflow.includes("pnpm build"), true);
 });
+
+test("documents and continuously verifies the production deployment contract", () => {
+  assert.equal(existsSync("docs/PRODUCTION_RUNBOOK.md"), true);
+
+  const readme = readFileSync("README.md", "utf8");
+  const runbook = readFileSync("docs/PRODUCTION_RUNBOOK.md", "utf8");
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  const environment = readFileSync(".env.example", "utf8");
+
+  assert.match(readme, /docs\/PRODUCTION_RUNBOOK\.md/);
+  for (const section of [
+    "Supabase",
+    "Twilio",
+    "Railway",
+    "Vercel",
+    "回滚",
+    "验收",
+    "密钥泄漏",
+  ]) {
+    assert.match(runbook, new RegExp(section));
+  }
+  assert.match(workflow, /pnpm verify:deployment/);
+  assert.match(environment, /^PORT=$/m);
+  assert.match(environment, /^PRODUCTION_APP_URL=$/m);
+  assert.doesNotMatch(environment, /^PORT=\d+|^PRODUCTION_APP_URL=https:\/\//m);
+});

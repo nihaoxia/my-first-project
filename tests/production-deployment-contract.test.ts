@@ -31,6 +31,17 @@ test("the explicit MCP port takes precedence over Railway PORT", () => {
   if (result.ok) assert.equal(result.value.port, 8787);
 });
 
+test("an empty platform PORT is treated as absent", () => {
+  const result = parseTranslationMcpServerConfig({
+    ...validEnvironment,
+    PORT: "",
+    MCP_TRANSLATION_PORT: "8787",
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.port, 8787);
+});
+
 test("invalid platform ports fail with the stable public configuration error", () => {
   assert.deepEqual(
     parseTranslationMcpServerConfig({ ...validEnvironment, PORT: "0" }),

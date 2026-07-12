@@ -135,9 +135,12 @@ DATABASE_URL=postgresql://review:review@localhost:5432/stray_pages pnpm db:valid
 - 每章成功后才保存完整译文；任一分段失败时整章失败，不会写入半章或回退到模板译文。
 - 页面关闭时不会在后台继续。遗留的“翻译中”任务会变为需要手动重试，避免刷新后无提示地重复调用模型。
 - 本地模式数据仍可能被清理浏览器数据、无痕模式或设备故障删除；生产环境应启用已实现的 Supabase 云端模式，并配置备份与保留策略。
-- Prisma schema 已包含核心模型和可表达的唯一约束，但仓库尚无经过评审的初始 migration，不应直接把 `db push` 当作生产迁移方案。
+- Prisma schema 与权威 Supabase migration 已覆盖核心模型和数据库安全约束；生产部署必须按运行手册应用 migration，禁止用 `prisma db push` 替代。
 
 ## 生产接入清单
+
+完整的平台创建、migration、Twilio、Railway、Vercel、验收和回滚步骤见
+[`docs/PRODUCTION_RUNBOOK.md`](docs/PRODUCTION_RUNBOOK.md)。
 
 正式上线前至少需要完成：
 

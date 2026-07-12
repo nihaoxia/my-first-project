@@ -37,6 +37,9 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Verify production deployment contracts
+        run: pnpm verify:deployment
+
       - name: Run ESLint
         run: pnpm lint
 

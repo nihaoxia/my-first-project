@@ -1,10 +1,15 @@
 import { z } from "zod";
 import { isAllowedServerHttpUrl } from "../../lib/security/server-url-policy.ts";
 
+const optionalPort = z.preprocess(
+  (value) => typeof value === "string" && !value.trim() ? undefined : value,
+  z.coerce.number().int().min(1).max(65_535).optional(),
+);
+
 const serverConfigSchema = z.object({
   NODE_ENV: z.string().optional(),
-  PORT: z.coerce.number().int().min(1).max(65_535).optional(),
-  MCP_TRANSLATION_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+  PORT: optionalPort,
+  MCP_TRANSLATION_PORT: optionalPort,
   TRANSLATION_MCP_SECRET: z.string().min(32),
   AI_BASE_URL: z.url(),
   AI_API_KEY: z.string().min(1),
