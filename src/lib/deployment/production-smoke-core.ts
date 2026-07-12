@@ -1,11 +1,10 @@
 export type ProductionSmokeCheckName =
   | "configuration"
+  | "app-health"
   | "app-home"
-  | "mcp-health"
-  | "mcp-unauthorized"
   | "supabase-auth"
   | "supabase-rest"
-  | "supabase-storage";
+  | "security-headers";
 
 export type ProductionSmokeCheckCode =
   | "OK"
@@ -21,17 +20,11 @@ export type ProductionSmokeCheck = {
   code: ProductionSmokeCheckCode;
 };
 
-export type ProductionSmokeResult = {
-  ok: boolean;
-  checks: ProductionSmokeCheck[];
-};
+export type ProductionSmokeResult = { ok: boolean; checks: ProductionSmokeCheck[] };
 
 export type ProductionSmokeConfig = {
   appUrl: string;
-  mcpUrl: string;
   supabaseUrl: string;
-  supabaseAnonKey: string;
-  mcpSecret: string;
   timeoutMs?: number;
 };
 
@@ -43,7 +36,6 @@ export type ProductionSmokeFetch = (
 type CheckDefinition = {
   name: Exclude<ProductionSmokeCheckName, "configuration">;
   url: string;
-  init?: RequestInit;
   expectedStatus: number;
   validate?: (response: Response) => Promise<boolean>;
 };
@@ -58,65 +50,40 @@ export async function runProductionSmoke(
   if (!normalized) {
     return {
       ok: false,
-      checks: [
-        { name: "configuration", ok: false, status: null, code: "INVALID_CONFIG" },
-      ],
+      checks: [{ name: "configuration", ok: false, status: null, code: "INVALID_CONFIG" }],
     };
   }
 
-  const publicHeaders = new Headers({
-    apikey: normalized.supabaseAnonKey,
-    authorization: `Bearer ${normalized.supabaseAnonKey}`,
-  });
   const checks: CheckDefinition[] = [
     {
-      name: "app-home",
-      url: normalized.appUrl,
+      name: "app-health",
+      url: new URL("/api/health", normalized.appUrl).toString(),
       expectedStatus: 200,
+      validate: validateAppHealth,
     },
-    {
-      name: "mcp-health",
-      url: new URL("/health", normalized.mcpUrl).toString(),
-      expectedStatus: 200,
-      validate: validateMcpHealth,
-    },
-    {
-      name: "mcp-unauthorized",
-      url: normalized.mcpUrl,
-      init: {
-        method: "POST",
-        headers: new Headers({ "content-type": "application/json" }),
-        body: "{}",
-      },
-      expectedStatus: 401,
-    },
+    { name: "app-home", url: normalized.appUrl, expectedStatus: 200 },
     {
       name: "supabase-auth",
       url: new URL("/auth/v1/health", normalized.supabaseUrl).toString(),
-      init: { headers: publicHeaders },
       expectedStatus: 200,
     },
     {
       name: "supabase-rest",
       url: new URL("/rest/v1/", normalized.supabaseUrl).toString(),
-      init: { headers: publicHeaders },
       expectedStatus: 200,
     },
     {
-      name: "supabase-storage",
-      url: new URL("/storage/v1/bucket", normalized.supabaseUrl).toString(),
-      init: { headers: publicHeaders },
+      name: "security-headers",
+      url: normalized.appUrl,
       expectedStatus: 200,
+      validate: validateSecurityHeaders,
     },
   ];
 
   const results: ProductionSmokeCheck[] = [];
   for (const check of checks) {
-    results.push(
-      await executeCheck(check, normalized.timeoutMs, fetchImplementation),
-    );
+    results.push(await executeCheck(check, normalized.timeoutMs, fetchImplementation));
   }
-
   return { ok: results.every((check) => check.ok), checks: results };
 }
 
@@ -129,7 +96,6 @@ async function executeCheck(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImplementation(definition.url, {
-      ...definition.init,
       redirect: "follow",
       signal: controller.signal,
     });
@@ -155,37 +121,25 @@ async function executeCheck(
   }
 }
 
-async function validateMcpHealth(response: Response): Promise<boolean> {
+async function validateAppHealth(response: Response) {
   if (response.status !== 200) return false;
   const body: unknown = await response.json();
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    (body as Record<string, unknown>).status === "ok" &&
-    (body as Record<string, unknown>).configured === true
-  );
+  return isRecord(body) && body.status === "ok" && body.configured === true;
+}
+
+async function validateSecurityHeaders(response: Response) {
+  const hsts = response.headers.get("strict-transport-security") ?? "";
+  return response.headers.get("x-content-type-options")?.toLowerCase() === "nosniff" && /max-age=\d+/i.test(hsts);
 }
 
 function normalizeConfig(config: ProductionSmokeConfig) {
   const appUrl = normalizeHttpsUrl(config.appUrl);
-  const mcpUrl = normalizeHttpsUrl(config.mcpUrl);
   const supabaseUrl = normalizeHttpsUrl(config.supabaseUrl);
-  const supabaseAnonKey = config.supabaseAnonKey.trim();
-  const mcpSecret = config.mcpSecret.trim();
   const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  if (
-    !appUrl ||
-    !mcpUrl ||
-    !supabaseUrl ||
-    !supabaseAnonKey ||
-    mcpSecret.length < 32 ||
-    !Number.isInteger(timeoutMs) ||
-    timeoutMs < 100 ||
-    timeoutMs > 60_000
-  ) {
+  if (!appUrl || !supabaseUrl || !Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000) {
     return null;
   }
-  return { appUrl, mcpUrl, supabaseUrl, supabaseAnonKey, mcpSecret, timeoutMs };
+  return { appUrl, supabaseUrl, timeoutMs };
 }
 
 function normalizeHttpsUrl(value: string) {
@@ -198,9 +152,11 @@ function normalizeHttpsUrl(value: string) {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function isAbortError(error: unknown) {
-  return (
-    (error instanceof DOMException && error.name === "AbortError") ||
-    (error instanceof Error && error.name === "AbortError")
-  );
+  return (error instanceof DOMException && error.name === "AbortError") ||
+    (error instanceof Error && error.name === "AbortError");
 }

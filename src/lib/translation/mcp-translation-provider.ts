@@ -58,7 +58,7 @@ export function parseMcpTranslationClientConfig(
   | { ok: false; code: "MCP_NOT_CONFIGURED"; message: string } {
   const result = clientConfigSchema.safeParse(env);
 
-  if (result.success && !isAllowedServerHttpUrl(result.data.TRANSLATION_MCP_URL, result.data.NODE_ENV)) {
+  if (result.success && !isAllowedMcpUrl(result.data.TRANSLATION_MCP_URL, result.data.NODE_ENV)) {
     return { ok: false, code: "MCP_NOT_CONFIGURED", message: "翻译 MCP 服务尚未配置。" };
   }
 
@@ -72,6 +72,16 @@ export function parseMcpTranslationClientConfig(
         },
       }
     : { ok: false, code: "MCP_NOT_CONFIGURED", message: "翻译 MCP 服务尚未配置。" };
+}
+
+function isAllowedMcpUrl(value: string, nodeEnv: string | undefined) {
+  if (isAllowedServerHttpUrl(value, nodeEnv)) return true;
+  if (nodeEnv !== "production") return false;
+  try {
+    return new URL(value).toString() === "http://translation-mcp:8787/mcp";
+  } catch {
+    return false;
+  }
 }
 
 export function createMcpTranslationProvider(

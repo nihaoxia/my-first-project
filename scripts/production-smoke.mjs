@@ -3,10 +3,7 @@ import { runProductionSmoke } from "../src/lib/deployment/production-smoke-core.
 const timeout = Number(process.env.PRODUCTION_SMOKE_TIMEOUT_MS ?? "10000");
 const result = await runProductionSmoke({
   appUrl: process.env.PRODUCTION_APP_URL ?? "",
-  mcpUrl: process.env.TRANSLATION_MCP_URL ?? "",
-  supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-  mcpSecret: process.env.TRANSLATION_MCP_SECRET ?? "",
+  supabaseUrl: process.env.PRODUCTION_SUPABASE_URL ?? "",
   timeoutMs: timeout,
 });
 

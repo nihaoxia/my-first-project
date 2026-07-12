@@ -7,13 +7,9 @@ import {
   type ProductionSmokeFetch,
 } from "../src/lib/deployment/production-smoke-core.ts";
 
-const secret = "secret-that-must-never-appear-123456";
 const validConfig: ProductionSmokeConfig = {
   appUrl: "https://app.example.com",
-  mcpUrl: "https://mcp.example.com/mcp",
-  supabaseUrl: "https://project.supabase.co",
-  supabaseAnonKey: secret,
-  mcpSecret: secret,
+  supabaseUrl: "https://api.example.com",
   timeoutMs: 100,
 };
 
@@ -22,32 +18,28 @@ test("smoke summary reports every public capability without echoing credentials"
   const fakeFetch: ProductionSmokeFetch = async (input, init) => {
     const url = String(input);
     calls.push({ url, init });
-    if (url === "https://mcp.example.com/mcp") {
-      return new Response('{"error":"Unauthorized"}', { status: 401 });
-    }
-    if (url === "https://mcp.example.com/health") {
-      return Response.json({ status: "ok", configured: true });
-    }
-    return new Response("ok", { status: 200 });
+    if (url === "https://app.example.com/api/health") return Response.json({ status: "ok", configured: true });
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+      },
+    });
   };
 
   const result = await runProductionSmoke(validConfig, fakeFetch);
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.checks.map((check) => check.name), [
+    "app-health",
     "app-home",
-    "mcp-health",
-    "mcp-unauthorized",
     "supabase-auth",
     "supabase-rest",
-    "supabase-storage",
+    "security-headers",
   ]);
-  assert.equal(JSON.stringify(result).includes(secret), false);
-  assert.equal(calls.some((call) => call.url.includes(secret)), false);
-  assert.equal(
-    calls.find((call) => call.url.endsWith("/mcp"))?.init?.headers instanceof Headers,
-    true,
-  );
+  assert.equal(calls.some((call) => call.url.includes("mcp")), false);
+  assert.equal(calls.some((call) => call.init?.headers), false);
 });
 
 test("invalid or non-HTTPS production URLs fail before making a request", async () => {
@@ -72,23 +64,21 @@ test("invalid or non-HTTPS production URLs fail before making a request", async 
 test("timeouts and network errors are classified without response bodies", async () => {
   const fakeFetch: ProductionSmokeFetch = async (input) => {
     const url = String(input);
-    if (url.includes("/health")) {
+    if (url.includes("/api/health")) {
       throw new DOMException("provider secret leaked", "AbortError");
     }
     if (url.includes("/rest/v1/")) throw new Error("private upstream detail");
-    return url.endsWith("/mcp")
-      ? new Response("private body", { status: 500 })
-      : new Response("ok", { status: 200 });
+    return new Response("private body", { status: url === "https://app.example.com/" ? 500 : 200 });
   };
 
   const result = await runProductionSmoke(validConfig, fakeFetch);
   const byName = new Map(result.checks.map((check) => [check.name, check]));
 
   assert.equal(result.ok, false);
-  assert.equal(byName.get("mcp-health")?.code, "TIMEOUT");
+  assert.equal(byName.get("app-health")?.code, "TIMEOUT");
   assert.equal(byName.get("supabase-rest")?.code, "NETWORK");
-  assert.deepEqual(byName.get("mcp-unauthorized"), {
-    name: "mcp-unauthorized",
+  assert.deepEqual(byName.get("app-home"), {
+    name: "app-home",
     ok: false,
     status: 500,
     code: "UNEXPECTED_STATUS",
@@ -96,18 +86,17 @@ test("timeouts and network errors are classified without response bodies", async
   assert.equal(JSON.stringify(result).includes("private"), false);
 });
 
-test("health JSON must report configured readiness", async () => {
+test("app health JSON must report configured readiness", async () => {
   const fakeFetch: ProductionSmokeFetch = async (input) => {
     const url = String(input);
-    if (url.endsWith("/health")) return Response.json({ status: "ok", configured: false });
-    if (url.endsWith("/mcp")) return new Response("", { status: 401 });
-    return new Response("ok", { status: 200 });
+    if (url.endsWith("/api/health")) return Response.json({ status: "ok", configured: false });
+    return new Response("ok", { status: 200, headers: { "strict-transport-security": "max-age=1", "x-content-type-options": "nosniff" } });
   };
 
   const result = await runProductionSmoke(validConfig, fakeFetch);
 
-  assert.deepEqual(result.checks.find((check) => check.name === "mcp-health"), {
-    name: "mcp-health",
+  assert.deepEqual(result.checks.find((check) => check.name === "app-health"), {
+    name: "app-health",
     ok: false,
     status: 200,
     code: "UNEXPECTED_STATUS",

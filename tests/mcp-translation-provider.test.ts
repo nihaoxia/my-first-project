@@ -59,6 +59,13 @@ test("production requires HTTPS while development HTTP is loopback-only", () => 
   assert.equal(parseMcpTranslationClientConfig({ ...base, NODE_ENV: "development", TRANSLATION_MCP_URL: "http://mcp.example.com/mcp" }).ok, false);
 });
 
+test("production permits only the fixed private Compose MCP endpoint over HTTP", () => {
+  const base = { TRANSLATION_MCP_SECRET: "x".repeat(32), NODE_ENV: "production" };
+  assert.equal(parseMcpTranslationClientConfig({ ...base, TRANSLATION_MCP_URL: "http://translation-mcp:8787/mcp" }).ok, true);
+  assert.equal(parseMcpTranslationClientConfig({ ...base, TRANSLATION_MCP_URL: "http://translation-mcp:8787/other" }).ok, false);
+  assert.equal(parseMcpTranslationClientConfig({ ...base, TRANSLATION_MCP_URL: "http://attacker:8787/mcp" }).ok, false);
+});
+
 test("connect is bounded by the provider deadline and never reaches callTool after timeout", async () => {
   let calls = 0;
   const adapter: McpClientAdapter = {
