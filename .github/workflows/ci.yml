@@ -10,7 +10,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     env:
       DATABASE_URL: postgresql://review:review@localhost:5432/stray_pages
       MOCK_AUTH_ENABLED: "false"
@@ -55,5 +55,20 @@ jobs:
       - name: Build translation MCP server
         run: pnpm mcp:translation:build
 
+      - name: Build Tencent SMS hook
+        run: pnpm sms-hook:build
+
       - name: Build production application
         run: pnpm build
+
+      - name: Validate Tencent production Compose
+        run: docker compose --env-file deploy/tencent-cloud/env.example -f deploy/tencent-cloud/docker-compose.production.yml config --quiet
+
+      - name: Build production web image
+        run: docker build -f deploy/tencent-cloud/Dockerfile.web .
+
+      - name: Build production translation MCP image
+        run: docker build -f deploy/tencent-cloud/Dockerfile.translation-mcp .
+
+      - name: Build production SMS hook image
+        run: docker build -f deploy/tencent-cloud/Dockerfile.sms-hook .

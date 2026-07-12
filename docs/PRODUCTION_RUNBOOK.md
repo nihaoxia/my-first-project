@@ -1,163 +1,131 @@
-# Stray Pages 生产级验证环境运行手册
+# Stray Pages 腾讯云国内生产运行手册
 
-本手册用于部署受限的生产级验证环境：Vercel 网站、Supabase 新加坡项目、Twilio SMS、Railway Translation MCP 和 OpenAI 兼容模型。真实密钥只进入平台环境变量或密码管理器，禁止写入 Git、聊天记录、构建日志和验收截图。
+本手册是生产部署的唯一权威入口。目标架构位于腾讯云广州：Caddy、Next.js、自托管 Supabase Auth/PostgREST/PostgreSQL、Translation MCP 和腾讯云短信 Hook 在同一台 Linux 云服务器的 Docker Compose 中运行；原文存入广州私有 COS；项目镜像存入 TCR 私有仓库。生产服务器只运行固定 Git SHA 镜像，不执行 `git pull`。
 
-## 1. 部署前门禁
+密码、JWT、OTP、手机号、连接串、SecretId、SecretKey、模型密钥和 Hook secret 均不得进入 Git、聊天、截图、CI 日志或验收记录。
 
-在干净的 `main` commit 上运行：
+## 1. 账户持有人动作
+
+以下事项涉及身份、资质、验证码或付款，只能由账户持有人完成：
+
+1. 腾讯云实名认证；
+2. 确认广州云服务器、数据盘、TCR、COS、短信和域名购买；
+3. 完成 CAPTCHA、短信验证码和付款确认；
+4. 提交 ICP备案主体、负责人和域名材料；
+5. 提交腾讯云短信签名、验证码模板和主体证明材料。
+
+身份证件、备案材料、短信主体材料、验证码和付款信息不得发送到本任务。其余技术配置、部署与验收由执行人员完成。
+
+## 2. 代码门禁
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm db:generate
 pnpm test
+pnpm verify:deployment
 pnpm lint
 pnpm typecheck
-pnpm verify:deployment
+pnpm db:validate
 pnpm mcp:translation:build
+pnpm sms-hook:build
 pnpm build
+docker compose --env-file deploy/tencent-cloud/env.example -f deploy/tencent-cloud/docker-compose.production.yml config --quiet
+docker build -f deploy/tencent-cloud/Dockerfile.web .
+docker build -f deploy/tencent-cloud/Dockerfile.translation-mcp .
+docker build -f deploy/tencent-cloud/Dockerfile.sms-hook .
 git diff --check
 ```
 
-记录 commit SHA，不记录任何环境变量值。生产资源名称固定为 `stray-pages-production`，网站 Vercel 项目名固定为 `stray-pages`。
+只记录 Git SHA、命令名称、退出码和时间，不记录环境变量值。
 
-## 2. Supabase 新加坡项目
+## 3. 广州资源与网络
 
-### 2.1 创建与关联
+资源统一使用 `stray-pages-production` 前缀并选择广州地域：独立 VPC、最低 4 vCPU/8 GiB 的腾讯云 Linux 云服务器、独立数据盘、TCR 私有命名空间、COS 私有 Bucket、腾讯云短信应用和腾讯混元兼容 API。安全组公网仅开放 80、443；SSH 仅允许受控来源。数据库 5432、MCP 8787、短信 Hook 9000 均不得映射公网，`private-net` 必须保持 `internal: true`。
 
-在 Supabase 创建 Singapore region 项目。数据库密码保存到密码管理器。通过官方 CLI 登录并把 project ref 放入当前终端变量；不要把 ref 和 token 写入仓库：
+## 4. 服务器加固与密钥
+
+更新安全补丁；创建非 root 运维用户；只允许 SSH key；关闭密码登录和 root 远程登录；安装固定版本 Docker Engine 与 Compose；挂载数据盘；配置时间同步、磁盘、容器重启和异常登录告警。
+
+从 `deploy/tencent-cloud/secrets.example.env` 复制键名到 `/etc/stray-pages/production.env`，只在服务器本地填写真实值。文件必须 root 所有、权限 `0600`；`/var/lib/stray-pages` 权限为 `0700`。`PRODUCTION_SECRETS_FILE` 必须指向该绝对路径。
+
+## 5. TCR 镜像
+
+把固定上游 Caddy、Supabase Auth、PostgREST、Supabase PostgreSQL 和 Kong 镜像同步到 TCR。三个项目镜像使用完整 40 位 Git SHA 标签：
 
 ```bash
-pnpm dlx supabase@2.90.0 login
-pnpm dlx supabase@2.90.0 link --project-ref $SUPABASE_PROJECT_REF
+docker build -f deploy/tencent-cloud/Dockerfile.web -t <TCR>/stray-pages-web:<SHA> .
+docker build -f deploy/tencent-cloud/Dockerfile.translation-mcp -t <TCR>/stray-pages-translation-mcp:<SHA> .
+docker build -f deploy/tencent-cloud/Dockerfile.sms-hook -t <TCR>/stray-pages-sms-hook:<SHA> .
+docker push <TCR>/stray-pages-web:<SHA>
+docker push <TCR>/stray-pages-translation-mcp:<SHA>
+docker push <TCR>/stray-pages-sms-hook:<SHA>
 ```
 
-PowerShell 使用 `$env:SUPABASE_PROJECT_REF`，Bash 使用 `$SUPABASE_PROJECT_REF`。关联信息位于被忽略的 `supabase/.temp`，不得提交。
+禁止使用 `latest`。验收只保存镜像 digest，不保存 TCR 登录凭据。
 
-### 2.2 应用权威 migration
+## 6. COS
 
-唯一基础 migration 是 `supabase/migrations/202607110001_cloud_foundation.sql`。禁止使用 `prisma db push`：
+COS Bucket 必须私有、地域为 `ap-guangzhou`，禁止匿名读写和静态网站托管。应用对象键固定为 `{userId}/{bookId}/original.txt`，签名 URL 最长 300 秒。启用服务端加密、访问日志、异常流量告警和最小权限 CAM 策略。
+
+## 7. 腾讯云短信与自托管 Supabase
+
+短信模板只包含一个 6 位 OTP 参数。短信签名和模板审核通过后，将应用 ID、签名、模板 ID 和最小权限凭据写入 root-only 密钥文件。
+
+生成至少 32 字节随机 Hook secret，并把同一值分别写为 `SMS_HOOK_SECRET=v1,whsec_<base64>` 与 `GOTRUE_HOOK_SEND_SMS_SECRET=v1,whsec_<base64>`。Auth 只通过私网 `http://sms-hook:9000/hooks/send-sms` 发送 OTP。生产禁止固定 OTP、Mock Auth、Studio 和 Analytics。
+
+## 8. 域名、ICP备案与 HTTPS
+
+为网站和 API 准备两个已备案域名，分别填入 `APP_HOST` 与 `API_HOST`。中国大陆公开上线前必须完成 ICP备案。备案通过并完成 DNS 后，由 Caddy 申请 HTTPS 证书。验证 HSTS、`X-Content-Type-Options` 与 Referrer Policy。
+
+## 9. migration 与发布
+
+权威 migration 是 `supabase/migrations/202607110001_cloud_foundation.sql`，禁止 `prisma db push`。发布器先等待 PostgreSQL，在事务中应用未登记 migration，再更新固定 SHA 镜像：
 
 ```bash
-pnpm dlx supabase@2.90.0 db push --include-all
-pnpm dlx supabase@2.90.0 db lint --linked
+sudo PRODUCTION_SECRETS_FILE=/etc/stray-pages/production.env \
+  sh deploy/tencent-cloud/release.sh <40位Git-SHA>
 ```
 
-确认 migration history、Auth trigger、RLS、`FORCE ROW LEVEL SECURITY` 和 `original-books` bucket 均已建立。迁移失败时新增前滚修复 migration，不修改已经应用的远程 migration。
+状态文件为 `/var/lib/stray-pages/current-release-sha`。健康门禁失败时只恢复上一个镜像 SHA，不回滚数据库 migration；数据库变更只能新增前滚修复 migration。
 
-### 2.3 保存连接信息
-
-把以下值保存到密码管理器，稍后分别写入 Vercel：
-
-- Project URL → `NEXT_PUBLIC_SUPABASE_URL`
-- anon key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- service role key → `SUPABASE_SERVICE_ROLE_KEY`
-- transaction pooler URL → `DATABASE_URL`
-- direct database URL → `DIRECT_URL`，只用于迁移与受控运维，不提供给浏览器
-
-浏览器只允许获得 Project URL 和 anon key。
-
-## 3. Twilio 与 Supabase Phone Auth
-
-### 3.1 Twilio
-
-在 Twilio 创建 Messaging Service，绑定可发送目标测试号码所在地区的 sender。Account SID、Auth Token 和 Messaging Service SID保存到密码管理器。
-
-### 3.2 Supabase Auth Provider
-
-在 Supabase Dashboard 的 Authentication Providers 中启用 Phone/Twilio并填入三项 Twilio 凭据。设置：
-
-- OTP 长度 6；
-- OTP 有效期 10 分钟以内；
-- 单号码发送最小间隔至少 30 秒；
-- 项目处于受限验证状态，不发布公开注册链接；
-- 测试号码清单只保存在受控验收记录，不进入 Git。
-
-Vercel 必须使用 `AUTH_MODE=supabase`、`CLOUD_MODE=required`、`MOCK_AUTH_ENABLED=false`。固定 OTP `123456` 只属于本地 Docker配置。
-
-### 3.3 Auth 验证
-
-对两个测试号码各发送一次真实 OTP。登录后从 Supabase SQL Editor确认 Auth trigger分别创建 `UserProfile` 和 `AccountBalance`。验收记录只写测试账号代号，不记录手机号或 OTP。
-
-## 4. Railway Translation MCP
-
-### 4.1 创建服务
-
-在 Railway 创建 `stray-pages-production` 项目，从 GitHub `nihaoxia/my-first-project` 的 `main` 创建服务。根目录保持仓库根目录；Railway读取 `railway.toml`：
-
-- build：安装锁定依赖并执行 `pnpm mcp:translation:build`；
-- start：`pnpm mcp:translation:start`；
-- health：`/health`；
-- restart：失败最多重试 3 次。
-
-### 4.2 环境变量
-
-在 Railway设置 `NODE_ENV=production`、`MCP_TRUSTED_HOSTS`、`TRANSLATION_MCP_SECRET`、`AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 和 `AI_REQUEST_TIMEOUT_MS=60000`。`MCP_TRUSTED_HOSTS` 只填 Railway分配的纯主机名，不含协议和路径。
-
-Railway 自动注入 `PORT`，不要在平台固定 `MCP_TRANSLATION_PORT`。MCP secret至少 32 字节，生成结果直接保存到密码管理器和平台密码框，不进入日志或提交。
-
-### 4.3 Railway 验证
-
-- `GET https://<railway-domain>/health` 返回 `{"status":"ok","configured":true}`；
-- 未授权 `POST /mcp` 返回 401；
-- 非受信 Host 被拒绝；
-- 通过正式 MCP SDK调用 `translate_segments` 成功；
-- Railway日志中没有 bearer secret、AI key、原文全文或未脱敏用户信息。
-
-记录 deployment ID、域名、commit SHA和检查时间。
-
-## 5. Vercel 网站
-
-### 5.1 创建项目
-
-在 Vercel导入 GitHub仓库，项目名 `stray-pages`，Production Branch设为 `main`，Framework Preset设为 Next.js。`vercel.json` 固定安装、构建命令和 `sin1` 区域。
-
-### 5.2 Production 环境变量
-
-在 Vercel Production环境写入：`CLOUD_MODE=required`、`AUTH_MODE=supabase`、`MOCK_AUTH_ENABLED=false`、`NEXT_PUBLIC_APP_URL`、三项 Supabase API 配置、`DATABASE_URL`、bucket、MCP URL/secret和 180000 ms MCP超时。不要把 service role key写入 Preview；Preview使用独立 Supabase项目或保持云端能力不可用。
-
-### 5.3 URL 回填
-
-首次成功部署后，把 Vercel production URL回填到 `NEXT_PUBLIC_APP_URL`。在 Supabase Auth URL Configuration中设置同一个 Site URL；Additional Redirect URLs只加入受控 Vercel preview URL。重新部署生产 alias。
-
-## 6. 生产 Smoke
-
-在受控终端临时设置 `PRODUCTION_APP_URL`、`TRANSLATION_MCP_URL`、`NEXT_PUBLIC_SUPABASE_URL`、`NEXT_PUBLIC_SUPABASE_ANON_KEY` 和 `TRANSLATION_MCP_SECRET`，然后运行：
+## 10. Smoke 与验收
 
 ```bash
+PRODUCTION_APP_URL=https://<网站域名> \
+PRODUCTION_SUPABASE_URL=https://<API域名> \
 pnpm smoke:production
 ```
 
-输出只包含检查名、HTTP状态和稳定错误码。不得包含 URL查询参数、响应正文、header或 secret。全部检查应为 `OK`。
+输出只能包含检查名、HTTP 状态和稳定代码。完整验收包括：
 
-## 7. 双用户验收
+1. 应用健康、首页、Auth、REST、安全头全部 `OK`；
+2. 两个真实测试账号分别收到 OTP，记录只使用账号代号；
+3. 双用户数据库与 COS 对象互不可见；
+4. TXT 上传、签名下载、删除和清理意图成功；
+5. 至少一章通过腾讯混元真实翻译；
+6. 退出重登后书籍、译本、进度和学习数据恢复；
+7. `BANNED` 账号 fail closed；
+8. Caddy、容器、短信、COS、模型日志无敏感值；
+9. 数据库加密备份与一次恢复演练成功。
 
-1. 账号 A真实 OTP登录，上传合法 TXT并确认章节。
-2. 账号 B登录，确认无法读取 A 的数据库记录和 Storage对象。
-3. 账号 B上传另一份 TXT，账号 A同样不能读取。
-4. 账号 A创建云端译本，通过 Railway MCP完成至少一章真实翻译。
-5. 保存词汇、句子、笔记和阅读进度。
-6. 退出并重新登录，确认书籍、译本、译文和学习数据恢复。
-7. 删除测试书籍，确认数据库与 Storage对象删除；失败时必须存在持久化清理意图。
-8. 临时把一个测试资料角色设为 `BANNED`，确认其业务数据读取 fail closed；随后恢复测试角色。
+## 11. 快照、加密备份与恢复演练
 
-## 8. 日志与密钥泄漏检查
+- 数据盘每天创建快照，设置保留周期和失败告警；
+- 每天做 PostgreSQL 逻辑备份，本地使用独立备份密钥加密，再上传到独立私有 COS 备份 Bucket；
+- 备份 CAM 身份不得拥有生产 Bucket 删除权限；
+- 每月至少一次恢复演练：在隔离实例恢复最近备份，验证 migration 版本、表数量、RLS、Auth trigger 和抽样数据；
+- 恢复证据只记录备份代号、时间、耗时、校验结果和执行人。
 
-检查浏览器 Network、Vercel Function Logs、Railway Logs和 Supabase Logs。禁止出现数据库密码、连接串、service role key、JWT正文、MCP secret、AI key、Twilio Auth Token、OTP、未脱敏手机号或用户上传原文全文。
+## 12. 监控与告警
 
-### 密钥泄漏响应
+监控 CPU、内存、数据盘、PostgreSQL 连接、容器重启、HTTP 5xx、短信失败、COS 错误、模型超时和证书到期。日志不得记录请求原文、手机号、OTP、Authorization、Cookie、JWT、数据库连接串或供应商原始错误响应。
 
-发现泄漏时立即停止验收并按顺序轮换：泄漏平台 secret、所有复用位置、相关会话。MCP secret先让 Railway接受新值，再更新 Vercel并验证，最后删除旧值。数据库密码、service role、Twilio token和模型 key按平台轮换。清除可删除日志，记录事件时间、影响范围和轮换完成证据；不得把泄漏值复制到事件记录。
+## 13. 密钥泄漏响应
 
-## 9. 回滚
+发现密钥泄漏立即停止发布：禁用泄漏凭据；生成新值并更新 root-only 文件；重启服务并验证旧值失效；检查 Git、CI、容器日志与聊天影响范围；记录时间、影响和预防措施，但绝不复制泄漏值。
 
-- Vercel：production alias回退到上一成功 deployment。
-- Railway：回滚到上一健康 deployment；MCP不可用时网站保留读写功能但翻译 capability显示不可用。
-- 环境变量：恢复上一已验证版本并重新部署，不在代码中硬编码临时值。
-- Supabase：只使用前滚 migration修复，禁止回滚或改写已应用的基础 migration。
-- Twilio：短信故障时保持公开注册关闭，不回退到 Mock Auth。
+## 14. 回滚
 
-## 10. 验收记录
+应用故障使用 `release.sh` 固定 SHA 回滚。migration 不反向回滚，只新增前滚修复。COS 配置错误先撤销受影响 CAM 凭据，再恢复上一份配置。短信故障保持注册 fail closed，禁止切回固定 OTP 或 Mock Auth。
 
-记录网站与 MCP deployment ID/URL/commit、Supabase项目内部代号、最新 migration、smoke JSON、两个测试账号代号、RLS/Storage/OTP/翻译/恢复/删除/日志审计结果、验收时间和执行人。记录不得包含任何密钥、OTP或手机号。
-
-所有检查通过后，才把生产部署阶段标记完成并进入本地 Supabase/Docker 集成测试。
+只有全部验收证据通过后，才能把生产部署阶段标记完成。

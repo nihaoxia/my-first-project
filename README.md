@@ -2,6 +2,10 @@
 
 Stray Pages 是一个面向小说导入、译本创建、双语阅读和学习收藏的 Next.js 应用。当前仓库既支持无需外部服务的本地 TXT 流程，也已实现 Supabase Auth、PostgreSQL 云端数据、私有 Storage 和本地数据导入；通过独立 MCP Server 可接入 OpenAI 兼容模型完成真实逐章翻译。生产使用仍需部署 Supabase migration、配置短信供应商和密钥。
 
+## 国内生产架构
+
+生产目标固定为腾讯云广州：Linux 云服务器运行 Caddy、Next.js、自托管 Supabase、Translation MCP 和腾讯云短信 Hook，原文写入广州私有 COS，镜像存放在 TCR 私有仓库，模型使用腾讯混元兼容接口。生产不依赖海外托管平台登录；中国大陆公开上线前必须完成 ICP备案。详细部署、备份、恢复、验收与回滚步骤见 [`docs/PRODUCTION_RUNBOOK.md`](docs/PRODUCTION_RUNBOOK.md)。
+
 ## 当前可用范围
 
 - 开发环境 Mock 手机号登录，体验验证码为 `123456`；
@@ -83,7 +87,7 @@ AI_REQUEST_TIMEOUT_MS=60000
 
 `TRANSLATION_MCP_SECRET` 必须至少 32 个字符，并且网站进程与 MCP 进程必须使用同一个值。所有这些变量都是服务端变量，不能添加 `NEXT_PUBLIC_` 前缀，也不能提交真实值。
 
-生产环境中的 `TRANSLATION_MCP_URL` 与 `AI_BASE_URL` 必须使用 HTTPS；开发环境只允许通过 HTTP 访问 `localhost`、`127.0.0.1` 或 `[::1]`。`MCP_TRUSTED_HOSTS` 是逗号分隔、无协议和端口的 Host 白名单；生产部署必须显式配置实际域名，缺失时 MCP Server 会拒绝启动。当前翻译网关没有搜索工具，因此联网术语查证仍不可用，云端 API 会明确拒绝启用请求。
+生产环境中的 `AI_BASE_URL` 必须使用 HTTPS；网站到同一 Compose 内 MCP 的地址固定为 `http://translation-mcp:8787/mcp`，其他生产 HTTP MCP 地址均被拒绝。开发环境只允许通过 HTTP 访问 `localhost`、`127.0.0.1` 或 `[::1]`。`MCP_TRUSTED_HOSTS` 是逗号分隔、无协议和端口的 Host 白名单。当前翻译网关没有搜索工具，因此联网术语查证仍不可用，云端 API 会明确拒绝启用请求。
 
 OpenAI 兼容厂商只需替换 `AI_BASE_URL`、`AI_API_KEY` 和 `AI_MODEL`。例如 DeepSeek 可使用其 `/v1` 兼容地址和 `deepseek-chat`，通义千问可使用百炼兼容地址和已开通的模型名；具体模型可用性以账号所在供应商为准。
 
@@ -139,7 +143,7 @@ DATABASE_URL=postgresql://review:review@localhost:5432/stray_pages pnpm db:valid
 
 ## 生产接入清单
 
-完整的平台创建、migration、Twilio、Railway、Vercel、验收和回滚步骤见
+完整的腾讯云广州资源、自托管 Supabase、COS、短信、TCR、migration、验收和回滚步骤见
 [`docs/PRODUCTION_RUNBOOK.md`](docs/PRODUCTION_RUNBOOK.md)。
 
 正式上线前至少需要完成：
