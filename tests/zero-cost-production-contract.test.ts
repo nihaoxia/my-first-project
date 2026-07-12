@@ -57,3 +57,17 @@ test("runtime wrapper is server-only and never returns an invalid configuration"
   assert.match(source, /if \(!result\.ok\)/);
   assert.match(source, /return result\.config/);
 });
+
+test("authoritative authentication modules never depend on eventually consistent KV", async () => {
+  for (const path of [
+    "../src/lib/auth/edgeone-password-core.ts",
+    "../src/lib/auth/edgeone-account-core.ts",
+    "../src/lib/auth/edgeone-account-service-core.ts",
+    "../src/lib/auth/edgeone-account.ts",
+    "../src/lib/auth/edgeone-auth-rate-limit-core.ts",
+  ]) {
+    const source = await readOrEmpty(new URL(path, import.meta.url));
+    assert.notEqual(source, "", path);
+    assert.doesNotMatch(source, /kv-cache/iu, path);
+  }
+});
