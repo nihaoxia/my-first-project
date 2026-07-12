@@ -66,6 +66,8 @@
 
 **文件：**
 - 修改：`tests/production-deployment-contract.test.ts`
+- 修改：`src/server/translation-mcp/config.ts`
+- 修改：`src/server/translation-mcp/index.ts`
 - 创建：`deploy/tencent-cloud/docker-compose.production.yml`
 - 创建：`deploy/tencent-cloud/Caddyfile`
 - 创建：`deploy/tencent-cloud/Dockerfile.web`
@@ -102,6 +104,8 @@ test("Tencent production manifests expose only the HTTPS edge", () => {
 
 再增加 secret 禁止测试：Compose、Caddy、Dockerfile、env 示例不得包含 JWT、数据库密码、腾讯云密钥或可用 token 值。
 
+同时增加 MCP 监听地址测试：未配置时保持 `127.0.0.1`，`MCP_TRANSLATION_HOST=0.0.0.0` 时允许容器内网访问，其他地址返回稳定配置错误。
+
 - [ ] **步骤 2：运行红灯测试**
 
 运行：
@@ -113,6 +117,8 @@ node --experimental-strip-types --test tests/production-deployment-contract.test
 预期：FAIL，国内部署文件不存在，旧 manifest 仍存在。
 
 - [ ] **步骤 3：实现最小生产容器骨架**
+
+`src/server/translation-mcp/config.ts` 解析 `MCP_TRANSLATION_HOST` 为 `127.0.0.1` 或 `0.0.0.0`，默认回环地址；`index.ts` 使用解析后的 `listenHost`。Compose 显式设置 `0.0.0.0`。
 
 Compose 使用两个网络：`edge-net` 与 `private-net`。只有 `edge` 映射 `80:80`、`443:443`；数据库、MCP 和 Hook 仅使用 `expose`。每个应用容器设置：
 
@@ -144,7 +150,7 @@ git diff --check
 - [ ] **步骤 5：提交**
 
 ```bash
-git add tests/production-deployment-contract.test.ts deploy/tencent-cloud .dockerignore railway.toml vercel.json
+git add tests/production-deployment-contract.test.ts src/server/translation-mcp/config.ts src/server/translation-mcp/index.ts deploy/tencent-cloud .dockerignore railway.toml vercel.json
 git commit -m "feat: add Tencent Cloud production manifests"
 ```
 
