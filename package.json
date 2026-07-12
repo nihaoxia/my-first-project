@@ -17,6 +17,8 @@
     "mcp:translation:dev": "tsx watch src/server/translation-mcp/index.ts",
     "mcp:translation:build": "tsup src/server/translation-mcp/index.ts --format esm --platform node --target node22 --out-dir dist/translation-mcp --clean",
     "mcp:translation:start": "node dist/translation-mcp/index.js",
+    "smoke:production": "node scripts/production-smoke.mjs",
+    "verify:deployment": "node --experimental-strip-types --test tests/production-deployment-contract.test.ts tests/production-smoke.test.ts",
     "supabase:start": "pnpm dlx supabase@2.90.0 start",
     "supabase:stop": "pnpm dlx supabase@2.90.0 stop",
     "supabase:status": "pnpm dlx supabase@2.90.0 status",
