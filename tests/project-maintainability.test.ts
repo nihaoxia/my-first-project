@@ -35,6 +35,11 @@ test("documents local setup and runs the full verification stack in CI", () => {
   assert.equal(workflow.includes("pnpm lint"), true);
   assert.equal(workflow.includes("pnpm typecheck"), true);
   assert.equal(workflow.includes("pnpm build"), true);
+
+  const prismaGenerateIndex = workflow.indexOf("pnpm db:generate");
+  const typecheckIndex = workflow.indexOf("pnpm typecheck");
+  assert.notEqual(prismaGenerateIndex, -1);
+  assert.equal(prismaGenerateIndex < typecheckIndex, true);
 });
 
 test("documents and continuously verifies the production deployment contract", () => {
