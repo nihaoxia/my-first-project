@@ -3,7 +3,8 @@ import { isAllowedServerHttpUrl } from "../../lib/security/server-url-policy.ts"
 
 const serverConfigSchema = z.object({
   NODE_ENV: z.string().optional(),
-  MCP_TRANSLATION_PORT: z.coerce.number().int().min(1).max(65_535).default(8787),
+  PORT: z.coerce.number().int().min(1).max(65_535).optional(),
+  MCP_TRANSLATION_PORT: z.coerce.number().int().min(1).max(65_535).optional(),
   TRANSLATION_MCP_SECRET: z.string().min(32),
   AI_BASE_URL: z.url(),
   AI_API_KEY: z.string().min(1),
@@ -35,7 +36,7 @@ export function parseTranslationMcpServerConfig(
   return {
     ok: true,
     value: {
-      port: result.data.MCP_TRANSLATION_PORT,
+      port: result.data.MCP_TRANSLATION_PORT ?? result.data.PORT ?? 8787,
       mcpSecret: result.data.TRANSLATION_MCP_SECRET,
       aiBaseUrl: result.data.AI_BASE_URL.replace(/\/+$/, ""),
       aiApiKey: result.data.AI_API_KEY,
