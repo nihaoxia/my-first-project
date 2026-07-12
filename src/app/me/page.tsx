@@ -12,15 +12,28 @@ const quickActions = [
   { label: "学习资料", href: routes.vocabulary, icon: WalletCards },
 ];
 
-export default function MePage() {
+export default async function MePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ authError?: string }>;
+}) {
+  const params = await searchParams;
+  const authError = params?.authError === "SIGN_OUT_FAILED"
+    ? "退出登录失败，你仍处于登录状态。请稍后重试。"
+    : null;
   return (
-    <AppShell>
+    <AppShell requireAuth>
+      {authError ? (
+        <p className="mb-6 rounded-lg bg-red-50 p-3 text-sm text-red-700" role="alert">
+          {authError}
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <p className="text-sm font-medium text-[var(--primary)]">我的</p>
           <h1 className="mt-2 text-3xl font-semibold">余额、免费标准章和最近进度</h1>
           <p className="mt-3 max-w-2xl leading-7 text-[var(--muted-foreground)]">
-            这里集中展示你的账户余额、免费标准章、翻译任务和最近记录。创建译本时会优先使用免费标准章，再按人民币余额结算。
+            这里集中展示你的账户余额、免费标准章、翻译进度和最近记录。创建译本时会优先使用免费标准章，再按人民币余额结算。
           </p>
         </div>
       </div>
@@ -35,7 +48,7 @@ export default function MePage() {
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
           <div className="mb-5 flex items-center gap-2">
             <Clock aria-hidden="true" size={18} className="text-[var(--primary)]" />
-            <h2 className="text-xl font-semibold">最近翻译任务</h2>
+            <h2 className="text-xl font-semibold">最近翻译</h2>
           </div>
           <div className="divide-y divide-[var(--border)]">
             {translationTasks.slice(0, 5).map((task) => (

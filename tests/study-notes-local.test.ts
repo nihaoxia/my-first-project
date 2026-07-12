@@ -26,6 +26,14 @@ test("creates a local study note at the top of the list", () => {
   assert.equal(result.notes[0].id, result.note.id);
 });
 
+test("does not reuse an existing local note id after deletions", () => {
+  const result = createStudyNote([
+    { ...existingNotes[0], id: "note-local-2" },
+  ]);
+
+  assert.notEqual(result.note.id, "note-local-2");
+});
+
 test("updates a local study note title and content", () => {
   const result = updateStudyNote(existingNotes, "note-1", {
     title: "  黑桥重点  ",

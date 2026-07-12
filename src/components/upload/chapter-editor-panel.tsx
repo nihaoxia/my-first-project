@@ -122,7 +122,7 @@ export function ChapterEditorPanel({
 
       {originalBookDraft.ok ? (
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h2 className="font-semibold">保存草稿准备</h2>
+          <h2 className="font-semibold">保存到书架</h2>
           <dl className="mt-3 space-y-2 text-sm">
             <div className="flex justify-between gap-4">
               <dt className="text-[var(--muted-foreground)]">待保存章节</dt>
@@ -149,7 +149,7 @@ export function ChapterEditorPanel({
         </section>
       ) : (
         <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-          <h2 className="font-semibold">保存草稿准备</h2>
+          <h2 className="font-semibold">保存到书架</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">至少保留一个章节后才能保存到书架。</p>
         </section>
       )}

@@ -3,6 +3,22 @@ export type LibraryBookActionTile = {
   title: string;
 };
 
+export type FilterableLibraryBookTile = LibraryBookActionTile & {
+  source: "upload" | "translation";
+  kind: string;
+};
+
+export function filterLibraryBookTiles<T extends FilterableLibraryBookTile>(
+  books: T[],
+  filter: { source: "all" | FilterableLibraryBookTile["source"]; kind: string },
+) {
+  return books.filter(
+    (book) =>
+      (filter.source === "all" || book.source === filter.source) &&
+      (filter.kind === "all" || book.kind === filter.kind),
+  );
+}
+
 export type RenameLibraryBookResult<T extends LibraryBookActionTile> =
   | {
       ok: true;
@@ -18,7 +34,7 @@ export function renameLibraryBookTile<T extends LibraryBookActionTile>(
   bookId: string,
   titleInput: string,
 ): RenameLibraryBookResult<T> {
-  const title = titleInput.trim().replace(/\s+/g, " ");
+  const title = normalizeLibraryBookTitle(titleInput);
 
   if (!title) {
     return {
@@ -36,7 +52,7 @@ export function renameLibraryBookTile<T extends LibraryBookActionTile>(
     };
   }
 
-  if (books.some((book) => book.id !== bookId && book.title === title)) {
+  if (hasLibraryBookTitleConflict(books, bookId, title)) {
     return {
       ok: false,
       reason: "duplicate-title",
@@ -49,6 +65,20 @@ export function renameLibraryBookTile<T extends LibraryBookActionTile>(
   };
 }
 
+export function hasLibraryBookTitleConflict(
+  books: LibraryBookActionTile[],
+  bookId: string,
+  titleInput: string,
+) {
+  const title = normalizeLibraryBookTitle(titleInput);
+
+  return books.some((book) => book.id !== bookId && normalizeLibraryBookTitle(book.title) === title);
+}
+
 export function removeLibraryBookTile<T extends LibraryBookActionTile>(books: T[], bookId: string) {
   return books.filter((book) => book.id !== bookId);
+}
+
+function normalizeLibraryBookTitle(value: string) {
+  return value.trim().replace(/\s+/g, " ");
 }

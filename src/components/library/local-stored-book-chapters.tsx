@@ -1,20 +1,28 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ArrowRight } from "lucide-react";
 import { useMemo, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import {
+  getLocalStorageFailureMessage,
+  getLocalStorageSnapshotFailure,
+  readScopedLocalStorage,
+  toLocalStorageSnapshot,
+} from "@/lib/storage/safe-local-storage";
+import {
   findStoredLocalLibraryBook,
   localLibraryBooksStorageKey,
-  parseStoredLocalLibraryBooks,
+  parseStoredLocalLibraryBooksResult,
 } from "@/lib/library/local-library-storage";
-import { routes } from "@/lib/routes";
+import { routes, routeBuilders } from "@/lib/routes";
 
 const localLibraryBooksChangedEvent = "stray-pages.local-library-books-changed";
 
 type LocalStoredBookState =
   | { status: "loading" }
   | { status: "missing" }
+  | { status: "malformed" }
+  | { status: "storage-error"; reason: "unavailable" | "scope-unavailable" }
   | {
       status: "ready";
       book: NonNullable<ReturnType<typeof findStoredLocalLibraryBook>>;
@@ -36,15 +44,24 @@ export function LocalStoredBookChapters({ bookId }: { bookId: string }) {
     );
   }
 
-  if (state.status === "missing") {
+  if (state.status === "missing" || state.status === "malformed" || state.status === "storage-error") {
+    const description =
+      state.status === "storage-error"
+        ? getLocalStorageFailureMessage(state.reason)
+        : state.status === "malformed"
+          ? "本地书架数据已损坏，系统没有继续解析，也不会自动覆盖原始内容。"
+          : "这本书可能已经从书架移出。你可以回到书架查看当前保存的书籍。";
+
     return (
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8">
         <div className="flex gap-3">
           <AlertTriangle className="mt-0.5 text-amber-700" size={19} aria-hidden="true" />
           <div>
-            <h1 className="text-2xl font-semibold">没有找到这本书</h1>
+            <h1 className="text-2xl font-semibold">
+              {state.status === "missing" ? "没有找到这本书" : "无法读取本地书架"}
+            </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              这本书可能已经从书架移出。你可以回到书架查看当前保存的书籍。
+              {description}
             </p>
             <Button href={routes.library} className="mt-5">
               回到书架
@@ -65,9 +82,15 @@ export function LocalStoredBookChapters({ bookId }: { bookId: string }) {
             共 {state.book.chapterCount} 章，来自 {state.book.format} 导入。
           </p>
         </div>
-        <Button href={routes.library} variant="secondary">
-          回到书架
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button href={routes.library} variant="secondary">
+            回到书架
+          </Button>
+          <Button href={routeBuilders.bookTranslate(state.book.id)}>
+            创建译本
+            <ArrowRight aria-hidden="true" size={18} />
+          </Button>
+        </div>
       </div>
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)]">
@@ -83,7 +106,7 @@ export function LocalStoredBookChapters({ bookId }: { bookId: string }) {
               <div>
                 <h3 className="font-medium">{chapter.title}</h3>
                 <p className="mt-2 line-clamp-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  {chapter.contentPreview}
+                  {chapter.content || chapter.contentPreview}
                 </p>
               </div>
               <div className="text-sm">
@@ -113,7 +136,8 @@ function getServerLocalLibraryBooksSnapshot() {
 }
 
 function readLocalLibraryBooksSnapshot() {
-  return window.localStorage.getItem(localLibraryBooksStorageKey);
+  const result = readScopedLocalStorage(localLibraryBooksStorageKey);
+  return toLocalStorageSnapshot(result);
 }
 
 function parseLocalStoredBookState(
@@ -124,7 +148,19 @@ function parseLocalStoredBookState(
     return { status: "loading" };
   }
 
-  const book = findStoredLocalLibraryBook(parseStoredLocalLibraryBooks(rawBooks), bookId);
+  const storageFailure = getLocalStorageSnapshotFailure(rawBooks);
+
+  if (storageFailure) {
+    return { status: "storage-error", reason: storageFailure };
+  }
+
+  const booksParseResult = parseStoredLocalLibraryBooksResult(rawBooks);
+
+  if (!booksParseResult.ok) {
+    return { status: "malformed" };
+  }
+
+  const book = findStoredLocalLibraryBook(booksParseResult.records, bookId);
 
   if (!book) {
     return { status: "missing" };

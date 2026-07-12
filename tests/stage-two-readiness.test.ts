@@ -21,17 +21,20 @@ test("marks all local stage two foundations as complete", () => {
       "complete",
       "complete",
       "complete",
+      "complete",
+      "complete",
     ],
   );
+  assert.match(readiness.localItems.map((item) => item.label).join("\n"), /Supabase Auth/);
+  assert.match(readiness.localItems.map((item) => item.label).join("\n"), /migration.*RLS/i);
 });
 
-test("keeps external Supabase and SMS integration as explicit blockers", () => {
+test("keeps only deployment credentials, remote migration, and SMS provider as external blockers", () => {
   const readiness = getStageTwoReadiness();
 
   assert.deepEqual(readiness.externalBlockers, [
-    "Supabase 项目 URL、anon key 和 service role key 尚未配置。",
-    "PostgreSQL DATABASE_URL / DIRECT_URL 尚未连接到真实项目。",
-    "真实短信验证码服务尚未接入，当前仍使用开发期固定验证码 123456。",
-    "Prisma 迁移尚未应用到真实远程数据库。",
+    "部署环境仍需配置 Supabase 项目 URL、anon key、service role key 和 PostgreSQL DATABASE_URL。",
+    "权威 Supabase migration 仍需应用并验证到目标远程项目。",
+    "生产手机号 OTP 仍需在目标 Supabase 项目配置短信供应商；固定验证码 123456 仅用于本地 Docker。",
   ]);
 });

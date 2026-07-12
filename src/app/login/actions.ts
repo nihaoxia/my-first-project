@@ -1,25 +1,41 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { getSafeRedirectPath, validateMockLoginInput } from "@/lib/auth/mock-policy";
+
+import { createLoginActionOrchestrator } from "@/lib/auth/login-action-core";
 import { clearMockSession, setMockSession } from "@/lib/auth/mock-session";
+import { getSupabaseAuthService } from "@/lib/auth/supabase-auth-service";
 
-export async function loginWithMockOtp(formData: FormData) {
-  const phone = String(formData.get("phone") ?? "").trim();
-  const code = String(formData.get("code") ?? "").trim();
-  const nextPath = getSafeRedirectPath(String(formData.get("next") ?? ""));
-  const nextQuery = nextPath === "/library" ? "" : `&next=${encodeURIComponent(nextPath)}`;
-  const result = validateMockLoginInput(phone, code);
+const orchestrator = createLoginActionOrchestrator({
+  getSupabaseService: getSupabaseAuthService,
+  setMockSession,
+  clearMockSession,
+});
 
-  if (!result.ok) {
-    redirect(`/login?error=${result.reason}${nextQuery}`);
-  }
-
-  await setMockSession(result.phone);
-  redirect(nextPath);
+export async function sendLoginOtp(formData: FormData) {
+  const outcome = await orchestrator.send(
+    {
+      phone: String(formData.get("phone") ?? ""),
+      next: String(formData.get("next") ?? ""),
+    },
+    process.env,
+  );
+  redirect(outcome.destination);
 }
 
-export async function logoutMockSession() {
-  await clearMockSession();
-  redirect("/login");
+export async function verifyLoginOtp(formData: FormData) {
+  const outcome = await orchestrator.verify(
+    {
+      phone: String(formData.get("phone") ?? ""),
+      token: String(formData.get("code") ?? ""),
+      next: String(formData.get("next") ?? ""),
+    },
+    process.env,
+  );
+  redirect(outcome.destination);
+}
+
+export async function logoutSession() {
+  const outcome = await orchestrator.logout(process.env);
+  redirect(outcome.destination);
 }

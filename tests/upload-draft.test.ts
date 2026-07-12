@@ -50,49 +50,22 @@ test("builds parsed TXT upload drafts with inferred metadata and chapter preview
   assert.equal(draft.chapters[0]?.title, "第一章 雾起");
 });
 
-test("keeps EPUB drafts explicit about parser support", () => {
+test("rejects EPUB drafts until parser and persistence support exists", () => {
   assert.deepEqual(buildUploadDraft({ name: "迷雾边境 - 林间客.epub", size: 2048 }), {
-    ok: true,
-    format: "EPUB",
-    metadata: {
-      title: "迷雾边境",
-      author: "林间客",
-      format: "EPUB",
-      originalFileName: "迷雾边境 - 林间客.epub",
-    },
-    parseStatus: "needs-epub-parser",
-    chapters: [],
-    warnings: [],
+    ok: false,
+    reason: "unsupported-format",
   });
 });
 
-test("keeps MOBI and PDF drafts explicit about later processing", () => {
+test("rejects MOBI and PDF drafts until complete processing exists", () => {
   assert.deepEqual(buildUploadDraft({ name: "迷雾边境 - 林间客.mobi", size: 2048 }), {
-    ok: true,
-    format: "MOBI",
-    metadata: {
-      title: "迷雾边境",
-      author: "林间客",
-      format: "MOBI",
-      originalFileName: "迷雾边境 - 林间客.mobi",
-    },
-    parseStatus: "needs-file-parser",
-    chapters: [],
-    warnings: [],
+    ok: false,
+    reason: "unsupported-format",
   });
 
   assert.deepEqual(buildUploadDraft({ name: "资料合集.pdf", size: 2048 }), {
-    ok: true,
-    format: "PDF",
-    metadata: {
-      title: "资料合集",
-      author: null,
-      format: "PDF",
-      originalFileName: "资料合集.pdf",
-    },
-    parseStatus: "needs-file-parser",
-    chapters: [],
-    warnings: [],
+    ok: false,
+    reason: "unsupported-format",
   });
 });
 

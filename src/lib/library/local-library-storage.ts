@@ -21,7 +21,7 @@ export function buildStoredLocalLibraryBook(
   savedAt = new Date().toISOString(),
 ): StoredLocalLibraryBook {
   return {
-    id: buildStoredBookId(draft.book.title, draft.book.originalFileName),
+    id: buildStoredBookId(draft.book.title, draft.book.originalFileName, savedAt),
     title: draft.book.title,
     author: draft.book.author,
     format: draft.book.format,
@@ -54,14 +54,14 @@ export function findStoredLocalLibraryBook(books: StoredLocalLibraryBook[], book
 
 export type RenameStoredLocalLibraryBookResult =
   | { ok: true; books: StoredLocalLibraryBook[] }
-  | { ok: false; reason: "empty-title" | "not-found" };
+  | { ok: false; reason: "empty-title" | "duplicate-title" | "not-found" };
 
 export function renameStoredLocalLibraryBook(
   books: StoredLocalLibraryBook[],
   bookId: string,
   nextTitle: string,
 ): RenameStoredLocalLibraryBookResult {
-  const title = nextTitle.trim();
+  const title = normalizeTitle(nextTitle);
 
   if (!title) {
     return { ok: false, reason: "empty-title" };
@@ -69,6 +69,10 @@ export function renameStoredLocalLibraryBook(
 
   if (!books.some((book) => book.id === bookId)) {
     return { ok: false, reason: "not-found" };
+  }
+
+  if (books.some((book) => book.id !== bookId && normalizeTitle(book.title) === title)) {
+    return { ok: false, reason: "duplicate-title" };
   }
 
   return {
@@ -93,6 +97,7 @@ export function isStoredLocalLibraryBook(value: unknown): value is StoredLocalLi
     typeof value.id === "string" &&
     value.id.startsWith("local-book-") &&
     typeof value.title === "string" &&
+    (typeof value.author === "string" || value.author === null) &&
     typeof value.format === "string" &&
     typeof value.originalFileName === "string" &&
     typeof value.chapterCount === "number" &&
@@ -100,30 +105,60 @@ export function isStoredLocalLibraryBook(value: unknown): value is StoredLocalLi
     typeof value.totalCharacters === "number" &&
     typeof value.savedAt === "string" &&
     Array.isArray(value.chapters) &&
-    Array.isArray(value.skippedChapters)
+    value.chapters.every(isStoredLocalLibraryChapter) &&
+    Array.isArray(value.skippedChapters) &&
+    value.skippedChapters.every(isStoredLocalSkippedChapter)
   );
 }
 
 export function parseStoredLocalLibraryBooks(rawValue: string | null): StoredLocalLibraryBook[] {
+  return parseStoredLocalLibraryBooksResult(rawValue).records;
+}
+
+export type StoredLocalLibraryBooksParseResult =
+  | { ok: true; status: "missing" | "ready"; records: StoredLocalLibraryBook[] }
+  | { ok: false; reason: "malformed"; records: StoredLocalLibraryBook[] };
+
+export function parseStoredLocalLibraryBooksResult(
+  rawValue: string | null,
+): StoredLocalLibraryBooksParseResult {
   if (!rawValue) {
-    return [];
+    return { ok: true, status: "missing", records: [] };
   }
 
   try {
     const parsed = JSON.parse(rawValue) as unknown;
 
     if (!Array.isArray(parsed)) {
-      return [];
+      return { ok: false, reason: "malformed", records: [] };
     }
 
-    return parsed.filter(isStoredLocalLibraryBook);
+    const records = parsed.filter(isStoredLocalLibraryBook).map(normalizeStoredLocalLibraryBook);
+
+    return records.length === parsed.length
+      ? { ok: true, status: "ready", records }
+      : { ok: false, reason: "malformed", records };
   } catch {
-    return [];
+    return { ok: false, reason: "malformed", records: [] };
   }
 }
 
-function buildStoredBookId(_title: string, originalFileName: string) {
-  return `local-book-${slugify(originalFileName)}-${stableTextId(originalFileName)}`;
+function normalizeStoredLocalLibraryBook(book: StoredLocalLibraryBook): StoredLocalLibraryBook {
+  return {
+    ...book,
+    chapters: book.chapters.map((chapter) => {
+      const legacyContent = (chapter as { content?: unknown }).content;
+
+      return {
+        ...chapter,
+        content: typeof legacyContent === "string" ? legacyContent : chapter.contentPreview,
+      };
+    }),
+  };
+}
+
+function buildStoredBookId(_title: string, originalFileName: string, savedAt: string) {
+  return `local-book-${slugify(originalFileName)}-${stableTextId(originalFileName)}-${stableTextId(savedAt)}`;
 }
 
 function slugify(value: string) {
@@ -146,6 +181,46 @@ function stableTextId(value: string) {
   return hash.toString(36);
 }
 
+function normalizeTitle(value: string) {
+  return value.trim().replace(/\s+/g, " ");
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function isStoredLocalLibraryChapter(value: unknown) {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.position === "number" &&
+    Number.isFinite(value.position) &&
+    typeof value.sourceIndex === "number" &&
+    Number.isFinite(value.sourceIndex) &&
+    typeof value.title === "string" &&
+    typeof value.originalTitle === "string" &&
+    typeof value.characterCount === "number" &&
+    Number.isFinite(value.characterCount) &&
+    (value.content === undefined || typeof value.content === "string") &&
+    typeof value.contentPreview === "string" &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every((warning) => typeof warning === "string")
+  );
+}
+
+function isStoredLocalSkippedChapter(value: unknown) {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.sourceIndex === "number" &&
+    Number.isFinite(value.sourceIndex) &&
+    typeof value.title === "string" &&
+    typeof value.originalTitle === "string" &&
+    Array.isArray(value.warnings) &&
+    value.warnings.every((warning) => typeof warning === "string")
+  );
 }

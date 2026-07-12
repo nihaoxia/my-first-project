@@ -1,9 +1,12 @@
+import { MAX_CHAPTERS } from "../cloud/upload-limits.ts";
+
 export type TxtChapterWarning = "leading-content" | "single-chapter" | "likely-toc" | "short-chapter";
 
 export type TxtChapterPreview = {
   index: number;
   title: string;
   characterCount: number;
+  content: string;
   contentPreview: string;
   suggestedSkip: boolean;
   warnings: TxtChapterWarning[];
@@ -67,7 +70,7 @@ export function parseTxtChapters(content: string, options: TxtChapterParseOption
     };
   }
 
-  const lines = normalizedContent.split("\n");
+  const lines = stripRepeatedLeadingTableOfContents(normalizedContent.split("\n"));
   const chunks: Array<{ title: string; contentLines: string[]; warnings: TxtChapterWarning[] }> = [];
   let currentTitle = txtChapterParsePolicy.leadingContentTitle;
   let currentLines: string[] = [];
@@ -117,6 +120,10 @@ export function parseTxtChapters(content: string, options: TxtChapterParseOption
     warnings: currentWarnings,
   });
 
+  if (chunks.length > MAX_CHAPTERS) {
+    throw new Error("TOO_MANY_CHAPTERS");
+  }
+
   return {
     chapters: chunks.map((chunk, index) =>
       buildChapterPreview({
@@ -160,6 +167,7 @@ function buildChapterPreview({
     index,
     title,
     characterCount,
+    content,
     contentPreview: buildContentPreview(content),
     suggestedSkip: likelyToc,
     warnings: Array.from(chapterWarnings),
@@ -172,6 +180,47 @@ function normalizeContent(content: string) {
 
 function normalizeLine(line: string) {
   return line.replace(/\s+/g, " ").trim();
+}
+
+function stripRepeatedLeadingTableOfContents(lines: string[]) {
+  if (detectTxtChapterHeading(lines[0] ?? "") !== "目录") {
+    return lines;
+  }
+
+  const directoryHeadings = new Set<string>();
+
+  for (let index = 1; index < lines.length; index += 1) {
+    const heading = detectTxtChapterHeading(lines[index]);
+
+    if (!heading || heading === "目录") {
+      continue;
+    }
+
+    const key = normalizeTocHeadingKey(heading);
+
+    if (directoryHeadings.has(key)) {
+      return lines.slice(index);
+    }
+
+    directoryHeadings.add(key);
+  }
+
+  return lines;
+}
+
+function normalizeTocHeadingKey(heading: string) {
+  const normalized = normalizeLine(heading);
+  const withoutLeaderAndPage = normalized.replace(
+    /\s*(?:(?:\.{2,}|…{2,}|。{2,}|·{2,}|-{2,})\s*)\d+\s*$/u,
+    "",
+  );
+
+  if (withoutLeaderAndPage !== normalized && detectTxtChapterHeading(withoutLeaderAndPage)) {
+    return withoutLeaderAndPage.toLowerCase();
+  }
+
+  const withoutTrailingPage = normalized.replace(/\s+\d+\s*$/u, "");
+  return (detectTxtChapterHeading(withoutTrailingPage) ? withoutTrailingPage : normalized).toLowerCase();
 }
 
 function countTextCharacters(content: string) {

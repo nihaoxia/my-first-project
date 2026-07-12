@@ -1,0 +1,4 @@
+import "server-only";
+import { getAppSession } from "../auth/app-session";
+import { getCloudStudyService } from "./study";
+export const cloudStudyRouteDependencies = { getSession: getAppSession, service: { list: (...args: Parameters<ReturnType<typeof getCloudStudyService>["list"]>) => getCloudStudyService().list(...args), create: (...args: Parameters<ReturnType<typeof getCloudStudyService>["create"]>) => getCloudStudyService().create(...args), update: (...args: Parameters<ReturnType<typeof getCloudStudyService>["update"]>) => getCloudStudyService().update(...args), delete: (...args: Parameters<ReturnType<typeof getCloudStudyService>["delete"]>) => getCloudStudyService().delete(...args), upsertReading: (...args: Parameters<ReturnType<typeof getCloudStudyService>["upsertReading"]>) => getCloudStudyService().upsertReading(...args) } };

@@ -114,7 +114,7 @@ test("normalizes reader settings into safe display ranges", () => {
       fontSize: 8,
       lineHeight: 4,
       contentWidth: 2000,
-      theme: "unknown",
+      theme: "unknown" as never,
     }),
     {
       fontSize: 16,

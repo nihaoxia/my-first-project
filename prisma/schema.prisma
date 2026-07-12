@@ -84,22 +84,48 @@ enum TermType {
   OTHER
 }
 
+enum NoteTargetType {
+  FREEFORM
+  ORIGINAL_BOOK
+  CHAPTER
+  TRANSLATED_BOOK
+}
+
+enum ImportKind {
+  VOCABULARY
+  SENTENCE
+  NOTE
+  READING
+}
+
+enum ImportBatchStatus {
+  COMPLETED
+  PARTIAL
+}
+
 model UserProfile {
-  id              String           @id @default(uuid()) @db.Uuid
-  phone           String           @unique
-  displayName     String?
-  role            UserRole         @default(USER)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  lastLoginAt     DateTime?
-  balance         AccountBalance?
-  originalBooks   OriginalBook[]
-  translatedBooks TranslatedBook[]
-  ledgers         BalanceLedger[]
-  holds           BalanceHold[]
-  vocabularyItems VocabularyItem[]
-  sentenceItems   SentenceItem[]
-  rateLimits      AiRateLimit[]
+  id                       String                    @id @default(uuid()) @db.Uuid
+  phone                    String                    @unique
+  displayName              String?
+  role                     UserRole                  @default(USER)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  lastLoginAt              DateTime?
+  balance                  AccountBalance?
+  originalBooks            OriginalBook[]
+  translatedBooks          TranslatedBook[]
+  ledgers                  BalanceLedger[]
+  holds                    BalanceHold[]
+  vocabularyItems          VocabularyItem[]
+  sentenceItems            SentenceItem[]
+  rateLimits               AiRateLimit[]
+  studyNotes               StudyNote[]
+  readingStates            ReadingState[]
+  storageCleanupTasks      StorageCleanupTask[]
+  translationBatchReceipts TranslationBatchReceipt[]
+  translationRetryReceipts TranslationRetryReceipt[]
+  importBatches            ImportBatch[]
+  importItems              ImportItem[]
 
   @@index([role])
 }
@@ -116,6 +142,7 @@ model AccountBalance {
 }
 
 model BalanceLedger {
+  /// The authoritative migration enforces one HOLD/CHARGE/RELEASE row per hold and validates hold terminal state, amount, task, and ownership.
   id          String           @id @default(uuid()) @db.Uuid
   userId      String           @db.Uuid
   type        LedgerType
@@ -135,8 +162,11 @@ model BalanceLedger {
 model BalanceHold {
   id         String           @id @default(uuid()) @db.Uuid
   userId     String           @db.Uuid
-  taskId     String?          @unique @db.Uuid
+  taskId     String?          @db.Uuid
+  /// Each execution attempt owns an immutable hold; expired/retried attempts create new audit rows.
+  attemptId  String           @db.Uuid
   amount     Decimal          @db.Decimal(10, 2)
+  freeUnits  Int              @default(0)
   releasedAt DateTime?
   chargedAt  DateTime?
   createdAt  DateTime         @default(now())
@@ -144,6 +174,7 @@ model BalanceHold {
   task       TranslationTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
   ledgers    BalanceLedger[]
 
+  @@unique([taskId, attemptId])
   @@index([userId, createdAt])
 }
 
@@ -155,6 +186,7 @@ model OriginalBook {
   sourceLanguage  BookLanguage     @default(UNKNOWN)
   format          BookFormat
   fileSizeBytes   Int
+  /// Supabase migration enforces the fixed owner-bound `<userId>/<bookId>/original.txt` path; preserve its raw CHECK in drift gates.
   storagePath     String
   chapterCount    Int              @default(0)
   uploadedAt      DateTime         @default(now())
@@ -166,6 +198,8 @@ model OriginalBook {
   terms           Term[]
   vocabularyItems VocabularyItem[]
   sentenceItems   SentenceItem[]
+  readingStates   ReadingState[]
+  studyNotes      StudyNote[]
 
   @@index([userId, uploadedAt])
 }
@@ -186,6 +220,8 @@ model Chapter {
   tasks              TranslationTask[]
   vocabularyItems    VocabularyItem[]
   sentenceItems      SentenceItem[]
+  readingStates      ReadingState[]
+  studyNotes         StudyNote[]
 
   @@unique([originalBookId, index])
   @@index([originalBookId, status])
@@ -201,7 +237,7 @@ model TranslatedBook {
   progressPercent    Int                 @default(0)
   completedChapters  Int                 @default(0)
   failedChapters     Int                 @default(0)
-  webSearchTerms     Boolean             @default(true)
+  webSearchTerms     Boolean             @default(false)
   createdAt          DateTime            @default(now())
   lastReadAt         DateTime?
   readingProgress    String?
@@ -210,7 +246,10 @@ model TranslatedBook {
   translatedChapters TranslatedChapter[]
   tasks              TranslationTask[]
   terms              Term[]
+  readingStates      ReadingState[]
+  studyNotes         StudyNote[]
 
+  @@unique([userId, originalBookId, targetLanguage])
   @@index([userId, createdAt])
   @@index([originalBookId, targetLanguage])
 }
@@ -222,6 +261,11 @@ model TranslatedChapter {
   title            String
   content          String
   qualityPassed    Boolean        @default(false)
+  providerName     String?
+  modelName        String?
+  inputTokens      Int?
+  outputTokens     Int?
+  wordCount        Int            @default(0)
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   translatedBook   TranslatedBook @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
@@ -232,25 +276,81 @@ model TranslatedChapter {
 }
 
 model TranslationTask {
-  id               String          @id @default(uuid()) @db.Uuid
-  translatedBookId String          @db.Uuid
-  chapterId        String          @db.Uuid
-  status           TaskStatus      @default(PENDING)
-  estimatedCost    Decimal         @db.Decimal(10, 2)
-  retryCount       Int             @default(0)
-  errorMessage     String?
-  startedAt        DateTime?
-  completedAt      DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  translatedBook   TranslatedBook  @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
-  chapter          Chapter         @relation(fields: [chapterId], references: [id], onDelete: Cascade)
-  balanceHold      BalanceHold?
-  ledgers          BalanceLedger[]
+  id                      String                    @id @default(uuid()) @db.Uuid
+  translatedBookId        String                    @db.Uuid
+  chapterId               String                    @db.Uuid
+  status                  TaskStatus                @default(PENDING)
+  estimatedCost           Decimal                   @db.Decimal(10, 2)
+  retryCount              Int                       @default(0)
+  /// Lease token used by server-side compare-and-swap completion. Never expose this field in browser DTOs.
+  attemptId               String?                   @db.Uuid
+  attemptStartedAt        DateTime?
+  attemptExpiresAt        DateTime?
+  /// Validated JSON segment checkpoint; the SQL migration enforces lease/checkpoint consistency.
+  translatedSegments      Json                      @default("[]")
+  nextSegmentIndex        Int                       @default(0)
+  checkpointProvider      String?
+  checkpointModel         String?
+  accumulatedInputTokens  Int                       @default(0)
+  accumulatedOutputTokens Int                       @default(0)
+  lastHeartbeatAt         DateTime?
+  /// Per-batch execution token; prevents concurrent provider calls for one checkpoint index.
+  batchExecutionId        String?                   @db.Uuid
+  batchExecutionExpiresAt DateTime?
+  batchExecutionIndex     Int?
+  lastBatchExecutionId    String?                   @db.Uuid
+  errorCode               String?
+  errorMessage            String?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  translatedBook          TranslatedBook            @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+  chapter                 Chapter                   @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  balanceHolds            BalanceHold[]
+  ledgers                 BalanceLedger[]
+  batchReceipts           TranslationBatchReceipt[]
+  retryReceipts           TranslationRetryReceipt[]
 
+  @@unique([translatedBookId, chapterId])
   @@index([translatedBookId, status])
+  @@index([status, attemptExpiresAt])
   @@index([chapterId])
   @@index([createdAt])
+}
+
+model TranslationBatchReceipt {
+  /// Immutable provider execution receipt. The authoritative migration blocks UPDATE/DELETE.
+  executionId       String          @id @db.Uuid
+  userId            String          @db.Uuid
+  taskId            String          @db.Uuid
+  attemptId         String          @db.Uuid
+  startSegmentIndex Int
+  endSegmentIndex   Int
+  outcome           String
+  errorCode         String?
+  createdAt         DateTime        @default(now())
+  user              UserProfile     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  task              TranslationTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([taskId, createdAt])
+}
+
+model TranslationRetryReceipt {
+  /// Immutable retry audit evidence used to reconcile an ambiguous retry commit.
+  retryExecutionId String          @id @db.Uuid
+  userId           String          @db.Uuid
+  taskId           String          @db.Uuid
+  fromRetryCount   Int
+  toRetryCount     Int
+  resetCheckpoint  Boolean
+  createdAt        DateTime        @default(now())
+  user             UserProfile     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  task             TranslationTask @relation(fields: [taskId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([taskId, createdAt])
 }
 
 model Term {
@@ -288,6 +388,7 @@ model VocabularyItem {
   originalBook   OriginalBook @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
   chapter        Chapter?     @relation(fields: [chapterId], references: [id], onDelete: SetNull)
 
+  @@unique([userId, originalBookId, term])
   @@index([userId, createdAt])
   @@index([originalBookId])
 }
@@ -307,6 +408,7 @@ model SentenceItem {
   originalBook   OriginalBook @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
   chapter        Chapter?     @relation(fields: [chapterId], references: [id], onDelete: SetNull)
 
+  @@unique([userId, originalBookId, originalText])
   @@index([userId, createdAt])
   @@index([originalBookId])
 }
@@ -323,4 +425,103 @@ model AiRateLimit {
 
   @@unique([userId, scope, windowKey])
   @@index([userId, updatedAt])
+}
+
+model StudyNote {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @db.Uuid
+  title            String
+  content          String
+  /// The authoritative migration enforces that exactly the target selected by targetType is populated and owner-bound.
+  targetType       NoteTargetType  @default(FREEFORM)
+  originalBookId   String?         @db.Uuid
+  chapterId        String?         @db.Uuid
+  translatedBookId String?         @db.Uuid
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             UserProfile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalBook     OriginalBook?   @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  chapter          Chapter?        @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  translatedBook   TranslatedBook? @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@index([originalBookId])
+  @@index([chapterId])
+  @@index([translatedBookId])
+}
+
+model ReadingState {
+  id               String          @id @default(uuid()) @db.Uuid
+  userId           String          @db.Uuid
+  /// Supabase migration enforces XOR and partial uniqueness for originalBookId and translatedBookId.
+  originalBookId   String?         @db.Uuid
+  /// Supabase migration enforces XOR and partial uniqueness for originalBookId and translatedBookId.
+  translatedBookId String?         @db.Uuid
+  chapterId        String?         @db.Uuid
+  /// Supabase migration enforces paragraphIndex >= 0; do not replace its raw constraints with Prisma-generated migrations.
+  paragraphIndex   Int             @default(0)
+  version          Int             @default(0)
+  settings         Json?
+  updatedAt        DateTime        @updatedAt
+  user             UserProfile     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  originalBook     OriginalBook?   @relation(fields: [originalBookId], references: [id], onDelete: Cascade)
+  translatedBook   TranslatedBook? @relation(fields: [translatedBookId], references: [id], onDelete: Cascade)
+  chapter          Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
+
+  @@index([userId, originalBookId])
+  @@index([userId, translatedBookId])
+  @@index([userId, updatedAt])
+  @@index([chapterId])
+}
+
+model StorageCleanupTask {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @db.Uuid
+  bucket        String
+  objectPath    String
+  reason        String
+  attempts      Int         @default(0)
+  nextAttemptAt DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          UserProfile @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([bucket, objectPath])
+  @@index([userId, nextAttemptAt])
+}
+
+model ImportBatch {
+  id              String            @id @default(uuid()) @db.Uuid
+  userId          String            @db.Uuid
+  manifestId      String            @db.Uuid
+  manifestVersion Int
+  status          ImportBatchStatus
+  itemCount       Int
+  createdCount    Int
+  skippedCount    Int
+  conflictCount   Int
+  errorCount      Int
+  startedAt       DateTime
+  completedAt     DateTime
+  user            UserProfile       @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, manifestId])
+  @@index([userId, completedAt])
+}
+
+model ImportItem {
+  id            String      @id @default(uuid()) @db.Uuid
+  userId        String      @db.Uuid
+  kind          ImportKind
+  sourceId      String
+  sourceVersion Int
+  payloadHash   String
+  targetId      String      @db.Uuid
+  createdAt     DateTime    @default(now())
+  user          UserProfile @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  /// The migration validates the polymorphic targetId, makes identity immutable, and forbids UPDATE/DELETE/TRUNCATE.
+  @@unique([userId, kind, sourceId])
+  @@index([userId, createdAt])
+  @@index([kind, targetId])
 }

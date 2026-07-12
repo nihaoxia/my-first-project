@@ -1,6 +1,9 @@
 import { AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { LocalUploadPanel } from "@/components/upload/local-upload-panel";
+import { CloudUploadPanel } from "@/components/cloud/cloud-upload-panel";
+import { getCloudServerConfig } from "@/lib/cloud/server-config";
+import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
 import { inferBookMetadataFromFileName } from "@/lib/upload/book-metadata";
 import { formatBytes, uploadFilePolicy } from "@/lib/upload/file-policy";
 import { txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
@@ -9,27 +12,24 @@ import { buildUploadDraft } from "@/lib/upload/upload-draft";
 const supportedFileFormats = uploadFilePolicy.supportedFormats.map((format) => format.label).join(" / ");
 const maxUploadSize = formatBytes(uploadFilePolicy.maxSizeBytes);
 const txtChapterRules = txtChapterParsePolicy.ruleLabels.slice(1);
-const sampleMetadata = inferBookMetadataFromFileName("迷雾边境 - 林间客.epub");
+const sampleMetadata = inferBookMetadataFromFileName("迷雾边境 - 林间客.txt");
 const sampleTxtDraft = buildUploadDraft({
   name: "迷雾边境 - 林间客.txt",
   size: 4096,
   textContent: "第一章 雾起\n雾从边境漫过来。\n\n第二章 黑桥\n桥下没有水，只有风。",
 });
-const sampleEpubDraft = buildUploadDraft({
-  name: "迷雾边境 - 林间客.epub",
-  size: 2048,
-});
-
 const steps = [
-  "识别 TXT/EPUB/MOBI/PDF 文件格式",
+  "验证 TXT 文件格式和本地存储安全上限",
   "尝试识别书名、作者和原始语言",
   "自动拆章并标记异常章节",
   "进入章节预览，确认后保存原版书",
 ];
 
 export default function UploadPage() {
+  const cloudResult = getCloudServerConfig();
+  const persistenceMode = resolveCloudPersistenceMode(cloudResult);
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <section>
           <h1 className="text-3xl font-semibold">上传小说</h1>
@@ -38,7 +38,7 @@ export default function UploadPage() {
           </p>
 
           <div className="mt-8">
-            <LocalUploadPanel />
+            {persistenceMode === "cloud" ? <CloudUploadPanel /> : persistenceMode === "local" ? <LocalUploadPanel /> : <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-800" role="alert">云端服务尚未正确配置，已停止上传；系统不会把本地数据伪装成云端数据。</div>}
           </div>
         </section>
 
@@ -61,9 +61,9 @@ export default function UploadPage() {
             <div className="flex gap-3">
               <AlertTriangle className="mt-0.5 text-amber-700" size={19} aria-hidden="true" />
               <div>
-                <h2 className="font-semibold">暂不支持</h2>
+                <h2 className="font-semibold">格式提醒</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  DOCX、图片 OCR 和扫描件不在第一版范围内。
+                  EPUB、MOBI、PDF、DOCX、图片 OCR 和扫描件尚未接入解析与保存流程。
                 </p>
               </div>
             </div>
@@ -122,14 +122,6 @@ export default function UploadPage() {
             </section>
           ) : null}
 
-          {sampleEpubDraft.ok ? (
-            <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
-              <h2 className="font-semibold">非 TXT 处理状态</h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                EPUB、MOBI 和 PDF 文件会先进入待处理状态，确认后再继续生成章节。
-              </p>
-            </section>
-          ) : null}
         </aside>
       </div>
     </AppShell>

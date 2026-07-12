@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import {
   buildStoredLocalLibraryBook,
   localLibraryBooksStorageKey,
-  parseStoredLocalLibraryBooks,
+  parseStoredLocalLibraryBooksResult,
   upsertStoredLocalLibraryBook,
 } from "@/lib/library/local-library-storage";
 import { buildEditableChapters } from "@/lib/upload/chapter-editing";
@@ -17,14 +17,25 @@ import {
 } from "@/lib/upload/local-upload-storage";
 import type { OriginalBookDraftResult } from "@/lib/upload/original-book-draft";
 import { routes } from "@/lib/routes";
+import {
+  getLocalStorageFailureMessage,
+  getLocalStorageSnapshotFailure,
+  readScopedLocalStorage,
+  removeScopedLocalStorage,
+  toLocalStorageSnapshot,
+  writeScopedLocalStorage,
+} from "@/lib/storage/safe-local-storage";
 import { ChapterEditorPanel } from "./chapter-editor-panel";
 
 type LocalDraftState =
   | { status: "loading" }
   | { status: "missing" }
+  | { status: "malformed" }
+  | { status: "storage-error"; reason: "unavailable" | "scope-unavailable" }
   | { status: "ready"; draft: StoredLocalUploadDraft };
 
 export function LocalChapterPreview() {
+  const [clearError, setClearError] = useState("");
   const rawDraft = useSyncExternalStore(
     subscribeToLocalDraft,
     readLocalDraftSnapshot,
@@ -35,7 +46,7 @@ export function LocalChapterPreview() {
   if (state.status === "loading") {
     return (
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-8 text-sm text-[var(--muted-foreground)]">
-        正在读取章节草稿...
+        正在读取章节...
       </div>
     );
   }
@@ -59,6 +70,50 @@ export function LocalChapterPreview() {
     );
   }
 
+  if (state.status === "malformed" || state.status === "storage-error") {
+    const message =
+      state.status === "malformed"
+        ? "已保存的上传草稿结构损坏，系统没有继续读取，也不会自动覆盖原始数据。"
+        : getLocalStorageFailureMessage(state.reason);
+
+    return (
+      <section className="rounded-xl border border-red-200 bg-[var(--surface)] p-8">
+        <div className="flex gap-3">
+          <AlertTriangle className="mt-0.5 text-red-700" size={19} aria-hidden="true" />
+          <div>
+            <h1 className="text-2xl font-semibold">无法读取上传草稿</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
+              {message}
+            </p>
+            {clearError ? <p className="mt-3 text-sm text-red-700">{clearError}</p> : null}
+            <div className="mt-5 flex flex-wrap gap-3">
+              {state.status === "malformed" ? (
+                <Button
+                  type="button"
+                  onClick={() => {
+                    const result = removeScopedLocalStorage(localUploadDraftStorageKey);
+
+                    if (!result.ok) {
+                      setClearError(getLocalStorageFailureMessage(result.reason));
+                      return;
+                    }
+
+                    window.location.assign(routes.upload);
+                  }}
+                >
+                  清除损坏草稿
+                </Button>
+              ) : null}
+              <Button href={routes.upload} variant="secondary">
+                返回导入
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return <LocalChapterPreviewReady draft={state.draft} />;
 }
 
@@ -73,12 +128,19 @@ function getServerDraftSnapshot() {
 }
 
 function readLocalDraftSnapshot() {
-  return window.localStorage.getItem(localUploadDraftStorageKey);
+  const result = readScopedLocalStorage(localUploadDraftStorageKey);
+  return toLocalStorageSnapshot(result);
 }
 
 function parseLocalDraftState(rawDraft: string | null | undefined): LocalDraftState {
   if (rawDraft === undefined) {
     return { status: "loading" };
+  }
+
+  const storageFailure = getLocalStorageSnapshotFailure(rawDraft);
+
+  if (storageFailure) {
+    return { status: "storage-error", reason: storageFailure };
   }
 
   if (!rawDraft) {
@@ -95,22 +157,52 @@ function parseLocalDraftState(rawDraft: string | null | undefined): LocalDraftSt
     // Ignore malformed local storage and show the normal empty state below.
   }
 
-  return { status: "missing" };
+  return { status: "malformed" };
 }
 
 function LocalChapterPreviewReady({ draft }: { draft: StoredLocalUploadDraft }) {
   const editableChapters = useMemo(() => buildEditableChapters(draft.chapters), [draft.chapters]);
   const [notice, setNotice] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   function handleSaveDraft(originalBookDraft: Extract<OriginalBookDraftResult, { ok: true }>) {
-    const currentBooks = parseStoredLocalLibraryBooks(
-      window.localStorage.getItem(localLibraryBooksStorageKey),
-    );
+    const currentBooksResult = readScopedLocalStorage(localLibraryBooksStorageKey);
+
+    if (!currentBooksResult.ok) {
+      setNotice("");
+      setSaveError(getLocalStorageFailureMessage(currentBooksResult.reason));
+      return;
+    }
+
+    const currentBooksParseResult = parseStoredLocalLibraryBooksResult(currentBooksResult.value);
+
+    if (!currentBooksParseResult.ok) {
+      setNotice("");
+      setSaveError("本地书架数据已损坏，为避免覆盖原始数据，本次保存已取消。");
+      return;
+    }
+
+    const currentBooks = currentBooksParseResult.records;
     const storedBook = buildStoredLocalLibraryBook(originalBookDraft);
     const nextBooks = upsertStoredLocalLibraryBook(currentBooks, storedBook);
+    const writeResult = writeScopedLocalStorage(
+      localLibraryBooksStorageKey,
+      JSON.stringify(nextBooks),
+    );
 
-    window.localStorage.setItem(localLibraryBooksStorageKey, JSON.stringify(nextBooks));
+    if (!writeResult.ok) {
+      setNotice("");
+      setSaveError(getLocalStorageFailureMessage(writeResult.reason));
+      return;
+    }
+
     window.dispatchEvent(new Event("stray-pages.local-library-books-changed"));
+    const cleanupResult = removeScopedLocalStorage(localUploadDraftStorageKey);
+    setSaveError(
+      cleanupResult.ok
+        ? ""
+        : `书籍已保存，但上传临时数据未能清理：${getLocalStorageFailureMessage(cleanupResult.reason)}`,
+    );
     setNotice("已保存到书架，可以回到书架继续管理。");
   }
 
@@ -136,6 +228,11 @@ function LocalChapterPreviewReady({ draft }: { draft: StoredLocalUploadDraft }) 
             uploadDraft={draft}
             onSaveDraft={handleSaveDraft}
           />
+          {saveError ? (
+            <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">
+              {saveError}
+            </div>
+          ) : null}
           {notice ? (
             <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
               <p>{notice}</p>

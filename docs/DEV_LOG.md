@@ -702,6 +702,115 @@
   - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
   - `.env`、`.env.local`、`.env.production` 无差异。
 
+- 阶段 12 继续修复本地导入书籍的数据闭环和普通用户文案：
+  - TXT 拆章结果现在同时保留短摘要和完整章节正文，短摘要用于列表展示，完整正文用于后续阅读和翻译链路。
+  - 原版书草稿和保存到书架的数据结构同步携带完整章节正文，避免用户保存导入书后只剩预览摘要。
+  - 本地书架读取逻辑兼容旧数据；旧的已保存书籍如果没有完整正文，会用原有摘要作为兜底内容，不会导致页面异常。
+  - 本地书章节列表优先使用完整正文展示章节片段，旧数据继续使用摘要。
+  - 上传页、上传控件和章节预览页移除“暂不支持”“待处理”“后续”“静态估算示例”等偏开发口吻，改为用户能理解的格式提醒、书籍信息确认和下一步说明。
+  - 新增/更新 `tests/txt-chapter-parser.test.ts`、`tests/original-book-draft.test.ts` 和 `tests/local-library-storage.test.ts`，覆盖完整正文保留和旧书架数据兼容。
+- 本轮阶段 12 数据闭环与文案收口验证：
+  - `pnpm test` 通过，212 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，构建输出包含 `/books/[bookId]/chapters`、`/upload` 和 `Proxy (Middleware)`。
+  - `git diff --check` 通过。
+  - 普通用户页面扫描未命中内部概念、真实环境变量名、冻结余额、可用余额、二次翻译标题、待处理、暂不支持或静态估算示例；仅剩源码内部 `mock` 导入名命中，不属于用户可见文案。
+  - `next-env.d.ts` 构建后已按项目约定还原到 `./.next/dev/types/routes.d.ts`。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+
+- 阶段 12 继续补齐本地保存书到创建译本的闭环：
+  - 新增 `src/lib/library/local-library-translation.ts`，将浏览器本地书架中的 TXT 书转换为创建译本页可复用的数据结构，包含书名、章节、字数和源语言推断。
+  - 新增 `src/components/translation/local-translation-create.tsx`，让 `/books/local-book-*/translate` 可以读取浏览器本地保存的书和完整章节正文，再复用现有创建译本面板进行章节选择、余额估算和免费标准章抵扣。
+  - 本地保存书的章节页新增“创建译本”入口，用户从书架打开本地书后可以继续进入翻译流程，不再停留在章节预览。
+  - 固定示例书仍沿用原来的服务端数据；本地书只在浏览器侧读取本地保存内容，不访问网络、不安装依赖、不读取或修改真实 `.env`。
+- 本轮验证：
+  - 先新增 `tests/local-library-translation.test.ts` 并确认缺少模块时失败，再补实现后通过。
+  - `pnpm test` 通过：215 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，输出包含 `/books/[bookId]/translate` 和 `Proxy (Middleware)`。
+  - `git diff --check` 通过。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+
+- 阶段 12 继续补齐本地保存书生成译本后的完整本地闭环：
+  - 新增 `src/lib/library/local-translation-storage.ts`，将本地保存书和创建译本结果保存为浏览器侧译本记录，包含章节任务、译文段落、阅读器视图数据、汇总统计、重命名和移出能力。
+  - 创建译本面板新增完成回调，`/books/local-book-*/translate` 现在可以在用户点击“开始翻译”后写入本地译本，并跳转到该译本自己的翻译进度页。
+  - 新增 `src/components/translation/local-translation-tasks.tsx` 和 `src/components/reader/local-translation-reader.tsx`，让 `local-translation-*` 可以打开翻译进度页和阅读器，不再只停在创建页。
+  - 书架会读取本地译本并显示为可打开的书籍卡片；本地译本支持在书架中重命名和移出，和本地原版书分开维护。
+  - 普通用户页面继续收口文案：首页、登录页、上传章节页、创建译本页、翻译进度页和学习数据文案已移除“草稿、翻译队列、开发阶段、模拟任务、静态原型、待处理”等偏内部或占位表述，改为“开始翻译、查看翻译进度、保存到书架、章节、余额、价格”等用户能理解的说法。
+  - 新增/更新 `tests/local-translation-storage.test.ts`、`tests/local-library-view.test.ts` 等测试，覆盖本地译本生成、解析、阅读器视图、书架卡片、重命名和移出。
+- 本轮验证：
+  - `pnpm test` 通过：222 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `pnpm build` 通过，输出包含 `/books/[bookId]/chapters`、`/books/[bookId]/translate`、`/translations/[translationId]/tasks`、`/reader` 和 `Proxy (Middleware)`。
+  - 普通用户页面扫描未命中本轮禁用/复杂文案；仅剩源码内部导入名或后台数据使用的内部字段。
+  - `git diff --check` 通过。
+  - `.env`、`.env.local`、`.env.production` 无差异。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+
+## 2026-07-02
+
+### 已完成
+
+- 阶段 12 继续收口普通用户翻译进度页文案：
+  - 将章节失败原因从偏内部的检查表述改为“本章检查未通过，未收取费用”。
+  - 将取消章节的进度文案从偏内部的任务流转表述改为“本章已取消，未收取费用”。
+  - 新增 `tests/user-facing-copy.test.ts`，固定普通用户翻译任务文案不能出现“模拟质检”“队列任务”等内部口吻，避免后续回归。
+- 本轮验证：
+  - 先运行 `node --experimental-strip-types --test tests/user-facing-copy.test.ts`，确认新增测试会因旧文案失败；修改文案后该测试通过。
+  - `pnpm test` 通过：223 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `git diff --check` 通过。
+  - `pnpm build` 通过，输出包含 `/books/[bookId]/chapters`、`/books/[bookId]/translate`、`/translations/[translationId]/tasks`、`/reader` 和 `Proxy (Middleware)`。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+  - 普通用户页面源码扫描未命中“模拟、队列、冻结金额、冻结余额、可用余额、预计冻结、冻结后可用、Provider、token、API、成本、审计、数据保留、生产配置、环境变量、待处理、静态估算示例、暂不支持、草稿”等禁用或复杂口吻。
+
+- 阶段 12 继续收口本地上传和创建译本的可用性断点：
+  - 新增本地上传草稿存储更新规则：当用户新选择的文件不能进入章节预览时，会清掉旧的本地章节预览，避免误打开上一次导入的书。
+  - 上传页改为复用该存储更新规则；成功拆章的 TXT 会保存预览，EPUB、MOBI、PDF、读取失败或不支持文件会清理旧预览。
+  - 创建译本页在未点击“开始翻译”前，不再把“查看翻译进度”链接到演示任务页；按钮会保持禁用，生成译本后才出现真实进度链接。
+  - 新增/更新 `tests/local-upload-storage.test.ts` 和 `tests/user-facing-copy.test.ts`，覆盖旧预览清理和创建译本前不误跳转到演示任务。
+- 本轮验证：
+  - 先运行 `node --experimental-strip-types --test tests/local-upload-storage.test.ts`，确认缺少存储更新规则时失败；补实现后通过。
+  - 先运行 `node --experimental-strip-types --test tests/user-facing-copy.test.ts`，确认创建译本页存在默认演示任务跳转时失败；修改后通过。
+  - `pnpm test` 通过：225 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `git diff --check` 通过。
+  - 普通用户页面源码扫描未命中“模拟、队列、冻结金额、冻结余额、可用余额、预计冻结、冻结后可用、Provider、token、API、成本、审计、数据保留、生产配置、环境变量、待处理、静态估算示例、暂不支持、草稿”等禁用或复杂口吻。
+  - 首次 `pnpm build` 暴露出本地上传读取失败结果与通用上传草稿类型不一致；已将本地上传存储更新 helper 的输入类型扩展为浏览器本地上传结果。
+  - 修复后 `pnpm build` 通过，输出包含 `/books/[bookId]/chapters`、`/books/[bookId]/translate`、`/translations/[translationId]/tasks`、`/reader` 和 `Proxy (Middleware)`。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+
+- 阶段 12 继续收口本地书架重命名边界：
+  - 本地保存的原文书重命名现在会统一清理首尾空格和连续空格，并拦截与其他本地原文书重复的书名。
+  - 本地译本重命名现在会拦截与其他本地译本重复的书名，避免书架中出现难以区分的同名译本。
+  - 书架已有的“已经有这本书”提示现在可以覆盖本地原文书和本地译本，不再只对演示书生效。
+  - 书架重命名现在会按当前可见书籍统一检查重名，避免原文书、译本和示例书之间出现同名卡片。
+- 本轮验证：
+  - 先运行 `node --experimental-strip-types --test tests/local-library-storage.test.ts`，确认本地原文书重复命名测试在旧逻辑下失败；补实现后通过。
+  - 先运行 `node --experimental-strip-types --test tests/local-translation-storage.test.ts`，确认本地译本重复命名测试在旧逻辑下失败；补实现后通过。
+  - 先运行 `node --experimental-strip-types --test tests/library-book-actions.test.ts`，确认缺少书架级重名检查时失败；补实现后通过。
+  - `pnpm test` 通过：227 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `git diff --check` 通过。
+  - 普通用户页面源码扫描未命中“模拟、队列、冻结金额、冻结余额、可用余额、预计冻结、冻结后可用、Provider、token、API、成本、审计、数据保留、生产配置、环境变量、待处理、静态估算示例、暂不支持、草稿”等禁用或复杂口吻。
+  - `pnpm build` 通过，输出包含 `/books/[bookId]/chapters`、`/books/[bookId]/translate`、`/translations/[translationId]/tasks`、`/reader`、`/me` 和 `Proxy (Middleware)`。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+
+- 阶段 12 继续收口普通用户翻译流程文案：
+  - 创建译本后的提示从“准备创建章节任务”改为“已选择章节”，减少偏内部的流程口吻。
+  - 翻译进度页和本地译本进度页将“翻译任务 / 章节任务”改为“翻译进度 / 章节进度”，继续保持普通用户只理解章节和翻译进度即可。
+  - “我的”页面将“翻译任务 / 最近翻译任务”改为“翻译进度 / 最近翻译”，继续减少普通用户页面的内部流程词。
+  - 扩展 `tests/user-facing-copy.test.ts`，固定普通用户翻译流程页面和“我的”页面不再出现“翻译任务”“章节任务”等文案。
+- 本轮验证：
+  - 先运行 `node --experimental-strip-types --test tests/user-facing-copy.test.ts`，确认旧文案会触发失败；替换文案后通过。
+  - `pnpm test` 通过：227 项通过，0 项失败。
+  - `pnpm lint` 通过。
+  - `git diff --check` 通过。
+  - 普通用户页面源码扫描未命中“模拟、队列、翻译任务、章节任务、冻结金额、冻结余额、可用余额、预计冻结、冻结后可用、Provider、token、API、成本、审计、数据保留、生产配置、环境变量、待处理、静态估算示例、暂不支持、草稿”等禁用或复杂口吻。
+  - `pnpm build` 通过，输出包含 `/books/[bookId]/chapters`、`/books/[bookId]/translate`、`/translations/[translationId]/tasks`、`/reader`、`/me` 和 `Proxy (Middleware)`。
+  - 构建后已将 `next-env.d.ts` 恢复为 `import "./.next/dev/types/routes.d.ts";`。
+
 ### 后续待办
 
 - 阶段 12 后续真实接入：真实余额、免费标准章和余额流水仍需等待 Supabase/Prisma 生产连接后接入。
@@ -742,3 +851,31 @@
 - 设计数据库结构初稿。
 - 梳理页面信息架构和主要界面清单。
 - 制定 MVP 开发顺序。
+
+## 2026-07-12
+
+### 已完成
+
+- 接续并审计账号、云端数据与对象存储实现：
+  - 确认 Supabase 手机号 OTP、权威数据库用户资料、统一 `AppSession`、生产禁用 Mock 和受保护路由已接入。
+  - 确认云端原版书、译本、翻译进度、阅读进度、学习资料与本地数据幂等导入已接入。
+  - 确认私有 Storage 对象路径、上传、签名下载、删除、持久化清理意图与失败补偿已接入。
+  - 确认权威 migration 已覆盖 Auth trigger、业务约束、RLS、私有 bucket 与 Storage policy。
+- 修复生产构建预渲染受保护页面时的 `CLOUD_NOT_CONFIGURED`：
+  - `getAppSession()` 现在先等待 Next.js 请求连接边界，再读取运行时配置和 Cookie。
+  - 生产缺少 Supabase 配置仍会在真实请求时安全失败，不会放宽生产配置规则。
+  - 新增回归测试，固定服务端会话必须在请求时解析。
+- 更新阶段 2/3 readiness、README 和路线图，区分“代码已实现”与“目标生产项目尚未配置”，不再把云端 Auth、数据库和 Storage 误写为未接入。
+
+### 验证
+
+- `pnpm test`：558 项通过，0 项失败（修复前基线）；新增聚焦回归测试均通过。
+- `pnpm lint`、`pnpm typecheck` 通过。
+- `pnpm build` 通过，账号保护页面和云端 API 均为按请求动态渲染。
+- 使用 CI 同款占位 `DATABASE_URL` 执行 `pnpm db:validate` 通过。
+- `git diff --check` 通过。
+
+### 外部环境待办
+
+- 本机 Docker Desktop 引擎未运行，无法在本轮启动本地 Supabase、执行 migration reset、RLS 双用户隔离和真实 Storage 集成验证。
+- 目标生产 Supabase 项目仍需配置 URL、anon key、service role key、PostgreSQL 连接、短信供应商，并应用权威 migration。

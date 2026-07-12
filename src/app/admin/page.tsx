@@ -23,7 +23,7 @@ import {
 
 export default function AdminPage() {
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <h1 className="text-3xl font-semibold">基础后台</h1>

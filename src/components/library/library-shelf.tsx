@@ -7,7 +7,10 @@ import {
   Plus,
 } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { clsx } from "clsx";
 import {
+  hasLibraryBookTitleConflict,
+  filterLibraryBookTiles,
   removeLibraryBookTile,
   renameLibraryBookTile,
 } from "@/lib/library/library-book-actions";
@@ -18,13 +21,30 @@ import {
 import {
   localLibraryBooksStorageKey,
   parseStoredLocalLibraryBooks,
+  parseStoredLocalLibraryBooksResult,
   removeStoredLocalLibraryBook,
   renameStoredLocalLibraryBook,
 } from "@/lib/library/local-library-storage";
 import {
   buildLocalLibraryBookTile,
+  buildLocalTranslationBookTile,
   isLocalLibraryBookId,
+  isLocalTranslationBookId,
 } from "@/lib/library/local-library-view";
+import {
+  localTranslationsStorageKey,
+  parseStoredLocalTranslations,
+  parseStoredLocalTranslationsResult,
+  removeStoredLocalTranslation,
+  renameStoredLocalTranslation,
+} from "@/lib/library/local-translation-storage";
+import {
+  getLocalStorageFailureMessage,
+  getLocalStorageSnapshotFailure,
+  readScopedLocalStorage,
+  toLocalStorageSnapshot,
+  writeScopedLocalStorage,
+} from "@/lib/storage/safe-local-storage";
 
 export type LibraryBookTile = {
   id: string;
@@ -35,6 +55,7 @@ export type LibraryBookTile = {
   coverTitle: string;
   coverSubTitle: string;
   kind: string;
+  source: "upload" | "translation";
 };
 
 const categoryErrorLabels = {
@@ -49,6 +70,7 @@ const bookErrorLabels = {
 } as const;
 
 const localLibraryBooksChangedEvent = "stray-pages.local-library-books-changed";
+const localTranslationsChangedEvent = "stray-pages.local-translations-changed";
 
 function subscribeToLocalLibraryBooks(onStoreChange: () => void) {
   window.addEventListener("storage", onStoreChange);
@@ -65,39 +87,100 @@ function getServerLocalLibraryBooksSnapshot() {
 }
 
 function readLocalLibraryBooksSnapshot() {
-  return window.localStorage.getItem(localLibraryBooksStorageKey);
+  const result = readScopedLocalStorage(localLibraryBooksStorageKey);
+  return toLocalStorageSnapshot(result);
+}
+
+function subscribeToLocalTranslations(onStoreChange: () => void) {
+  window.addEventListener("storage", onStoreChange);
+  window.addEventListener(localTranslationsChangedEvent, onStoreChange);
+
+  return () => {
+    window.removeEventListener("storage", onStoreChange);
+    window.removeEventListener(localTranslationsChangedEvent, onStoreChange);
+  };
+}
+
+function getServerLocalTranslationsSnapshot() {
+  return null;
+}
+
+function readLocalTranslationsSnapshot() {
+  const result = readScopedLocalStorage(localTranslationsStorageKey);
+  return toLocalStorageSnapshot(result);
 }
 
 function writeStoredLocalLibraryBooks(
   books: ReturnType<typeof parseStoredLocalLibraryBooks>,
 ) {
-  window.localStorage.setItem(localLibraryBooksStorageKey, JSON.stringify(books));
-  window.dispatchEvent(new Event(localLibraryBooksChangedEvent));
+  const result = writeScopedLocalStorage(localLibraryBooksStorageKey, JSON.stringify(books));
+
+  if (result.ok) {
+    window.dispatchEvent(new Event(localLibraryBooksChangedEvent));
+  }
+
+  return result;
+}
+
+function writeStoredLocalTranslations(
+  translations: ReturnType<typeof parseStoredLocalTranslations>,
+) {
+  const result = writeScopedLocalStorage(localTranslationsStorageKey, JSON.stringify(translations));
+
+  if (result.ok) {
+    window.dispatchEvent(new Event(localTranslationsChangedEvent));
+  }
+
+  return result;
 }
 
 export function LibraryShelf({
   initialCollections,
   books,
+  persistence = "local",
 }: {
   initialCollections: ShelfCategory[];
   books: LibraryBookTile[];
+  persistence?: "local" | "cloud";
 }) {
   const localLibrarySnapshot = useSyncExternalStore(
     subscribeToLocalLibraryBooks,
     readLocalLibraryBooksSnapshot,
     getServerLocalLibraryBooksSnapshot,
   );
-  const storedLocalBooks = useMemo(
-    () => parseStoredLocalLibraryBooks(localLibrarySnapshot),
+  const localTranslationSnapshot = useSyncExternalStore(
+    subscribeToLocalTranslations,
+    readLocalTranslationsSnapshot,
+    getServerLocalTranslationsSnapshot,
+  );
+  const localBooksParseResult = useMemo(
+    () => parseStoredLocalLibraryBooksResult(localLibrarySnapshot),
     [localLibrarySnapshot],
   );
+  const localTranslationsParseResult = useMemo(
+    () => parseStoredLocalTranslationsResult(localTranslationSnapshot),
+    [localTranslationSnapshot],
+  );
+  const storedLocalBooks = localBooksParseResult.records;
+  const storedLocalTranslations = localTranslationsParseResult.records;
   const storedBookTiles = useMemo(
     () => storedLocalBooks.map(buildLocalLibraryBookTile),
     [storedLocalBooks],
   );
+  const storedTranslationTiles = useMemo(
+    () => storedLocalTranslations.map(buildLocalTranslationBookTile),
+    [storedLocalTranslations],
+  );
   const [collections, setCollections] = useState(initialCollections);
   const [localBooks, setLocalBooks] = useState(books);
-  const visibleBooks = [...storedBookTiles, ...localBooks];
+  const allBooks = persistence === "cloud" ? localBooks : [...storedTranslationTiles, ...storedBookTiles, ...localBooks];
+  const [sourceFilter, setSourceFilter] = useState<"all" | "upload" | "translation">("all");
+  const [kindFilter, setKindFilter] = useState("all");
+  const visibleBooks = filterLibraryBookTiles(allBooks, {
+    source: sourceFilter,
+    kind: kindFilter,
+  });
+  const availableKinds = Array.from(new Set(allBooks.map((book) => book.kind))).sort();
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [error, setError] = useState("");
@@ -105,6 +188,15 @@ export function LibraryShelf({
   const [renamingBookId, setRenamingBookId] = useState("");
   const [renameTitle, setRenameTitle] = useState("");
   const [bookError, setBookError] = useState("");
+  const libraryStorageFailure = getLocalStorageSnapshotFailure(localLibrarySnapshot);
+  const translationStorageFailure = getLocalStorageSnapshotFailure(localTranslationSnapshot);
+  const storageWarning = persistence === "cloud" ? "" : libraryStorageFailure
+    ? getLocalStorageFailureMessage(libraryStorageFailure)
+    : translationStorageFailure
+      ? getLocalStorageFailureMessage(translationStorageFailure)
+      : !localBooksParseResult.ok || !localTranslationsParseResult.ok
+        ? "部分本地书架数据已损坏。为避免覆盖原始内容，本地重命名和删除已暂停。"
+        : "";
 
   function handleCreateCategory() {
     const result = createShelfCategory(collections, newTitle);
@@ -133,8 +225,18 @@ export function LibraryShelf({
     setBookError("");
   }
 
-  function submitBookRename() {
+  async function submitBookRename() {
+    if (hasLibraryBookTitleConflict(allBooks, renamingBookId, renameTitle)) {
+      setBookError(bookErrorLabels["duplicate-title"]);
+      return;
+    }
+
     if (isLocalLibraryBookId(renamingBookId)) {
+      if (!localBooksParseResult.ok) {
+        setBookError("本地原书数据已损坏，无法安全覆盖。请先备份或清理浏览器数据。");
+        return;
+      }
+
       const result = renameStoredLocalLibraryBook(storedLocalBooks, renamingBookId, renameTitle);
 
       if (!result.ok) {
@@ -142,13 +244,53 @@ export function LibraryShelf({
         return;
       }
 
-      writeStoredLocalLibraryBooks(result.books);
+      const writeResult = writeStoredLocalLibraryBooks(result.books);
+
+      if (!writeResult.ok) {
+        setBookError(getLocalStorageFailureMessage(writeResult.reason));
+        return;
+      }
+
       setRenamingBookId("");
       setRenameTitle("");
       setBookError("");
       return;
     }
 
+    if (isLocalTranslationBookId(renamingBookId)) {
+      if (!localTranslationsParseResult.ok) {
+        setBookError("本地译本数据已损坏，无法安全覆盖。请先备份或清理浏览器数据。");
+        return;
+      }
+
+      const result = renameStoredLocalTranslation(
+        storedLocalTranslations,
+        renamingBookId,
+        renameTitle,
+      );
+
+      if (!result.ok) {
+        setBookError(bookErrorLabels[result.reason]);
+        return;
+      }
+
+      const writeResult = writeStoredLocalTranslations(result.translations);
+
+      if (!writeResult.ok) {
+        setBookError(getLocalStorageFailureMessage(writeResult.reason));
+        return;
+      }
+
+      setRenamingBookId("");
+      setRenameTitle("");
+      setBookError("");
+      return;
+    }
+
+    if (persistence === "cloud") {
+      const response = await fetch(`/api/cloud/books/${encodeURIComponent(renamingBookId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: renameTitle }) });
+      if (!response.ok) { setBookError("云端重命名失败，请稍后重试。"); return; }
+    }
     const result = renameLibraryBookTile(localBooks, renamingBookId, renameTitle);
 
     if (!result.ok) {
@@ -168,15 +310,59 @@ export function LibraryShelf({
     setBookError("");
   }
 
-  function removeBook(bookId: string) {
+  async function removeBook(bookId: string) {
+    const book = allBooks.find((item) => item.id === bookId);
+
+    if (!book || !window.confirm(`确定将《${book.title}》移出书架吗？`)) {
+      return;
+    }
+
     if (isLocalLibraryBookId(bookId)) {
-      writeStoredLocalLibraryBooks(removeStoredLocalLibraryBook(storedLocalBooks, bookId));
+      if (!localBooksParseResult.ok) {
+        setBookError("本地原书数据已损坏，无法安全覆盖。请先备份或清理浏览器数据。");
+        return;
+      }
+
+      const writeResult = writeStoredLocalLibraryBooks(
+        removeStoredLocalLibraryBook(storedLocalBooks, bookId),
+      );
+
+      if (!writeResult.ok) {
+        setBookError(getLocalStorageFailureMessage(writeResult.reason));
+        return;
+      }
+
       setOpenBookMenuId("");
       setRenamingBookId("");
       setBookError("");
       return;
     }
 
+    if (isLocalTranslationBookId(bookId)) {
+      if (!localTranslationsParseResult.ok) {
+        setBookError("本地译本数据已损坏，无法安全覆盖。请先备份或清理浏览器数据。");
+        return;
+      }
+
+      const writeResult = writeStoredLocalTranslations(
+        removeStoredLocalTranslation(storedLocalTranslations, bookId),
+      );
+
+      if (!writeResult.ok) {
+        setBookError(getLocalStorageFailureMessage(writeResult.reason));
+        return;
+      }
+
+      setOpenBookMenuId("");
+      setRenamingBookId("");
+      setBookError("");
+      return;
+    }
+
+    if (persistence === "cloud") {
+      const response = await fetch(`/api/cloud/books/${encodeURIComponent(bookId)}`, { method: "DELETE" });
+      if (!response.ok) { setBookError("云端删除失败，请稍后重试。"); return; }
+    }
     setLocalBooks((currentBooks) => removeLibraryBookTile(currentBooks, bookId));
     setOpenBookMenuId("");
     setRenamingBookId("");
@@ -192,6 +378,50 @@ export function LibraryShelf({
             原文、译文和学习中的书都放在这里。
           </p>
         </div>
+      </div>
+
+      {storageWarning ? (
+        <p className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+          {storageWarning}
+        </p>
+      ) : null}
+
+      <div className="mb-7 flex flex-wrap items-center gap-3" aria-label="书架筛选">
+        {([
+          ["all", "全部"],
+          ["upload", "原书"],
+          ["translation", "译本"],
+        ] as const).map(([value, label]) => (
+          <button
+            key={value}
+            className={clsx(
+              "h-10 rounded-md px-4 text-sm font-medium transition",
+              sourceFilter === value
+                ? "bg-[var(--primary)] text-[var(--primary-foreground)]"
+                : "border border-[var(--border)] bg-white hover:bg-[var(--surface-2)]",
+            )}
+            type="button"
+            aria-pressed={sourceFilter === value}
+            onClick={() => setSourceFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+        <label className="flex h-10 items-center gap-2 rounded-md border border-[var(--border)] bg-white px-3 text-sm">
+          <span className="text-[var(--muted-foreground)]">语言/格式</span>
+          <select
+            className="bg-transparent font-medium outline-none"
+            value={kindFilter}
+            onChange={(event) => setKindFilter(event.target.value)}
+          >
+            <option value="all">全部</option>
+            {availableKinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {kind}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="grid grid-cols-2 gap-x-5 gap-y-9 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">

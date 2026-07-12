@@ -32,7 +32,7 @@ test("rejects empty upload files", () => {
 test("rejects files over the development upload limit", () => {
   assert.deepEqual(
     validateUploadFileCandidate({
-      name: "large.epub",
+      name: "large.txt",
       size: uploadFilePolicy.maxSizeBytes + 1,
     }),
     {
@@ -48,16 +48,16 @@ test("accepts supported files inside the development upload limit", () => {
     format: "TXT",
   });
   assert.deepEqual(validateUploadFileCandidate({ name: "story.mobi", size: 4096 }), {
-    ok: true,
-    format: "MOBI",
+    ok: false,
+    reason: "unsupported-format",
   });
   assert.deepEqual(validateUploadFileCandidate({ name: "story.pdf", size: 4096 }), {
-    ok: true,
-    format: "PDF",
+    ok: false,
+    reason: "unsupported-format",
   });
 });
 
 test("formats byte sizes for UI display", () => {
   assert.equal(formatBytes(1024), "1 KB");
-  assert.equal(formatBytes(20 * 1024 * 1024), "20 MB");
+  assert.equal(formatBytes(2 * 1024 * 1024), "2 MB");
 });

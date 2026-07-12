@@ -18,11 +18,8 @@ export type UploadFileValidationResult =
 export const uploadFilePolicy = {
   supportedFormats: [
     { label: "TXT", extension: ".txt" },
-    { label: "EPUB", extension: ".epub" },
-    { label: "MOBI", extension: ".mobi" },
-    { label: "PDF", extension: ".pdf" },
   ] as const,
-  maxSizeBytes: 20 * 1024 * 1024,
+  maxSizeBytes: 2 * 1024 * 1024,
 };
 
 export function detectUploadFileFormat(fileName: string): UploadFileFormat | null {
@@ -55,6 +52,10 @@ export function validateUploadFileCandidate(file: UploadFileCandidate): UploadFi
   const format = detectUploadFileFormat(file.name);
 
   if (!format) {
+    return { ok: false, reason: "unsupported-format" };
+  }
+
+  if (format !== "TXT") {
     return { ok: false, reason: "unsupported-format" };
   }
 

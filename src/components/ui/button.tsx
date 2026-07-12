@@ -1,6 +1,10 @@
 import Link from "next/link";
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 import { clsx } from "clsx";
+import {
+  buildButtonLinkProps,
+  type ButtonLinkAttributes,
+} from "@/components/ui/button-link-props";
 
 type ButtonVariant = "primary" | "secondary" | "ghost";
 
@@ -37,8 +41,10 @@ export function Button(props: ButtonProps | LinkButtonProps) {
   const classes = clsx(baseClasses, buttonClasses[variant], className);
 
   if ("href" in props && props.href) {
+    const linkProps = buildButtonLinkProps(rest as ButtonLinkAttributes, classes);
+
     return (
-      <Link className={classes} href={props.href}>
+      <Link {...linkProps}>
         {children}
       </Link>
     );

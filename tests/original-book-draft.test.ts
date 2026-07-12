@@ -58,6 +58,8 @@ test("builds an original book draft from a parsed TXT upload and editable chapte
       { position: 2, sourceIndex: 3, title: "第二章 黑桥" },
     ],
   );
+  assert.equal(draft.chapters[0].content, parsedUploadDraft.chapters[0].content);
+  assert.equal(draft.chapters[1].content, parsedUploadDraft.chapters[2].content);
   assert.deepEqual(draft.skippedChapters, [
     {
       sourceIndex: 2,
@@ -69,15 +71,15 @@ test("builds an original book draft from a parsed TXT upload and editable chapte
 });
 
 test("rejects upload drafts that have not been parsed into chapters", () => {
-  const epubDraft = buildUploadDraft({ name: "迷雾边境 - 林间客.epub", size: 2048 });
+  const pendingTxtDraft = buildUploadDraft({ name: "迷雾边境 - 林间客.txt", size: 2048 });
 
-  assert.equal(epubDraft.ok, true);
+  assert.equal(pendingTxtDraft.ok, true);
 
-  if (!epubDraft.ok) {
+  if (!pendingTxtDraft.ok) {
     return;
   }
 
-  assert.deepEqual(buildOriginalBookDraft({ uploadDraft: epubDraft, chapters: [] }), {
+  assert.deepEqual(buildOriginalBookDraft({ uploadDraft: pendingTxtDraft, chapters: [] }), {
     ok: false,
     reason: "upload-not-parsed",
   });

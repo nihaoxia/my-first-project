@@ -7,17 +7,22 @@ import { routeBuilders } from "@/lib/routes";
 import { formatBytes, uploadFilePolicy } from "@/lib/upload/file-policy";
 import { buildLocalUploadDraftFromFile, type LocalUploadDraftResult } from "@/lib/upload/local-upload-draft";
 import {
-  isStoredLocalUploadDraft,
+  getLocalUploadDraftStorageUpdate,
   localUploadBookId,
   localUploadDraftStorageKey,
 } from "@/lib/upload/local-upload-storage";
 import { canContinueToChapterPreview } from "@/lib/upload/upload-draft";
+import {
+  getLocalStorageFailureMessage,
+  removeScopedLocalStorage,
+  writeScopedLocalStorage,
+} from "@/lib/storage/safe-local-storage";
 
 type LocalUploadDraftFailureReason = Extract<LocalUploadDraftResult, { ok: false }>["reason"];
 
 const uploadErrorLabels: Record<LocalUploadDraftFailureReason, string> = {
   "empty-name": "文件名为空，请重新选择文件。",
-  "unsupported-format": "暂不支持这个格式，请选择 TXT、EPUB、MOBI 或 PDF 文件。",
+  "unsupported-format": "当前本地版本只支持 TXT；EPUB、MOBI 和 PDF 解析尚未接入。",
   "empty-file": "文件内容为空，请检查后重新选择。",
   "file-too-large": `文件超过 ${formatBytes(uploadFilePolicy.maxSizeBytes)}，请先拆分或压缩内容。`,
   "file-read-failed": "浏览器读取 TXT 内容失败，请重新选择文件。",
@@ -25,8 +30,8 @@ const uploadErrorLabels: Record<LocalUploadDraftFailureReason, string> = {
 
 const parseStatusLabels = {
   "needs-text-content": "等待读取文本",
-  "needs-epub-parser": "EPUB 待处理",
-  "needs-file-parser": "文件待处理",
+  "needs-epub-parser": "已选择文件",
+  "needs-file-parser": "已选择文件",
   parsed: "已完成拆章",
 };
 
@@ -35,6 +40,8 @@ export function LocalUploadPanel() {
   const [draft, setDraft] = useState<LocalUploadDraftResult | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [isReading, setIsReading] = useState(false);
+  const [isDraftStored, setIsDraftStored] = useState(false);
+  const [storageError, setStorageError] = useState("");
 
   async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -51,9 +58,17 @@ export function LocalUploadPanel() {
 
       setDraft(nextDraft);
 
-      if (isStoredLocalUploadDraft(nextDraft)) {
-        window.localStorage.setItem(localUploadDraftStorageKey, JSON.stringify(nextDraft));
-      }
+      const storageUpdate = getLocalUploadDraftStorageUpdate(nextDraft);
+      const storageResult =
+        storageUpdate.action === "save"
+          ? writeScopedLocalStorage(
+              localUploadDraftStorageKey,
+              JSON.stringify(storageUpdate.draft),
+            )
+          : removeScopedLocalStorage(localUploadDraftStorageKey);
+
+      setIsDraftStored(storageUpdate.action === "save" && storageResult.ok);
+      setStorageError(storageResult.ok ? "" : getLocalStorageFailureMessage(storageResult.reason));
     } finally {
       setIsReading(false);
     }
@@ -65,7 +80,7 @@ export function LocalUploadPanel() {
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept=".txt,.epub,.mobi,.pdf,text/plain,application/epub+zip,application/pdf"
+        accept=".txt,text/plain"
         onChange={handleFileChange}
       />
 
@@ -74,16 +89,16 @@ export function LocalUploadPanel() {
           <div className="flex size-12 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--primary)]">
             <UploadCloud aria-hidden="true" size={24} />
           </div>
-          <h2 className="mt-5 text-xl font-semibold">选择 TXT、EPUB、MOBI 或 PDF 文件</h2>
+          <h2 className="mt-5 text-xl font-semibold">选择 TXT 文件</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-            TXT 会读取文本并拆章。EPUB、MOBI 和 PDF 会先保存为待处理状态。
+            TXT 可立即解码、拆章并保存到当前账号的本地书架。
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button type="button" variant="secondary" onClick={() => inputRef.current?.click()} disabled={isReading}>
               {isReading ? <Loader2 aria-hidden="true" className="animate-spin" size={17} /> : <FileText aria-hidden="true" size={17} />}
               {isReading ? "读取中" : "选择文件"}
             </Button>
-            {canContinueToChapterPreview(draft) ? (
+            {canContinueToChapterPreview(draft) && isDraftStored ? (
               <Button href={routeBuilders.bookChapters(localUploadBookId)}>查看章节预览</Button>
             ) : (
               <Button type="button" disabled>
@@ -92,6 +107,11 @@ export function LocalUploadPanel() {
             )}
           </div>
           {fileName ? <p className="mt-3 text-sm text-[var(--muted-foreground)]">当前文件：{fileName}</p> : null}
+          {storageError ? (
+            <p className="mt-3 text-sm leading-6 text-red-700" role="alert">
+              {storageError}
+            </p>
+          ) : null}
         </div>
 
         <UploadDraftPreview draft={draft} isReading={isReading} />
@@ -152,13 +172,13 @@ function UploadDraftPreview({ draft, isReading }: { draft: LocalUploadDraftResul
 
       {draft.parseStatus === "needs-epub-parser" ? (
         <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-          EPUB 文件已识别。当前还不能拆章，接入解析能力后再继续生成章节。
+          EPUB 文件已识别。请先确认书籍信息，章节内容会在可用时继续整理。
         </p>
       ) : null}
 
       {draft.parseStatus === "needs-file-parser" ? (
         <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-          {draft.format} 文件已识别。当前还不能拆章，接入解析能力后再继续生成章节。
+          {draft.format} 文件已识别。请先确认书籍信息，章节内容会在可用时继续整理。
         </p>
       ) : null}
 

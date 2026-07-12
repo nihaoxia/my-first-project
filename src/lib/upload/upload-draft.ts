@@ -27,7 +27,7 @@ export type UploadDraftResult =
 
 export type ChapterPreviewCandidate =
   | null
-  | { ok: false }
+  | { ok: false; reason?: string }
   | {
       ok: true;
       parseStatus: UploadDraftParseStatus;

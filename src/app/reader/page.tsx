@@ -1,13 +1,43 @@
 import { AppShell } from "@/components/app-shell";
+import { LocalTranslationReader } from "@/components/reader/local-translation-reader";
 import { ReaderWorkspace } from "@/components/reader/reader-workspace";
-import { stageSevenReaderView, translatedBooks } from "@/lib/mock-data";
+import { buildStageSevenReaderView, translatedBooks } from "@/lib/mock-data";
+import { getAppSession } from "@/lib/auth/app-session";
+import { redirect } from "next/navigation";
+import { CloudTranslationReader } from "@/components/cloud/cloud-translation-reader";
+import { routes } from "@/lib/routes";
 
-export default function ReaderPage() {
+export default async function ReaderPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ translationId?: string; chapterId?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const localTranslationId = resolvedSearchParams?.translationId;
+  const session = await getAppSession();
+  if (!session) redirect(`/login?next=${encodeURIComponent("/reader")}`);
+
+  if (session.authMode === "supabase" && localTranslationId) {
+    return <AppShell wide requireAuth><CloudTranslationReader userId={session.userId} translationId={localTranslationId} chapterId={resolvedSearchParams?.chapterId} /></AppShell>;
+  }
+  if (session.authMode === "supabase") redirect(routes.library);
+
+  if (localTranslationId?.startsWith("local-translation-")) {
+    return (
+      <AppShell wide requireAuth>
+        <LocalTranslationReader
+          translationId={localTranslationId}
+          chapterId={resolvedSearchParams?.chapterId}
+        />
+      </AppShell>
+    );
+  }
+
   const translation = translatedBooks[0];
-  const readerView = stageSevenReaderView;
+  const readerView = buildStageSevenReaderView(resolvedSearchParams?.chapterId);
 
   return (
-    <AppShell wide>
+    <AppShell wide requireAuth>
       <ReaderWorkspace title={translation.title} readerView={readerView} />
     </AppShell>
   );

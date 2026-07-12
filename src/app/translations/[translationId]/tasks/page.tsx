@@ -1,6 +1,7 @@
 import { ShieldCheck } from "lucide-react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { LocalTranslationTasks } from "@/components/translation/local-translation-tasks";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -11,6 +12,8 @@ import {
   translatedBooks,
 } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
+import { getAppSession } from "@/lib/auth/app-session";
+import { CloudTranslationTasks } from "@/components/cloud/cloud-translation-tasks";
 
 export default async function TranslationTasksPage({
   params,
@@ -18,6 +21,18 @@ export default async function TranslationTasksPage({
   params: Promise<{ translationId: string }>;
 }) {
   const { translationId } = await params;
+  const session = await getAppSession();
+  if (!session) redirect(`/login?next=${encodeURIComponent(`/translations/${translationId}/tasks`)}`);
+  if (session.authMode === "supabase") return <AppShell requireAuth><CloudTranslationTasks translationId={translationId} /></AppShell>;
+
+  if (translationId.startsWith("local-translation-")) {
+    return (
+      <AppShell requireAuth>
+        <LocalTranslationTasks translationId={translationId} />
+      </AppShell>
+    );
+  }
+
   const translation = translatedBooks.find((item) => item.id === translationId);
 
   if (!translation) {
@@ -25,10 +40,10 @@ export default async function TranslationTasksPage({
   }
 
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
-          <p className="text-sm text-[var(--muted-foreground)]">翻译队列</p>
+          <p className="text-sm text-[var(--muted-foreground)]">翻译进度</p>
           <h1 className="mt-1 text-3xl font-semibold">{translation.title}</h1>
           <p className="mt-2 text-[var(--muted-foreground)]">
             系统会按章翻译、检查质量并处理费用。
@@ -38,17 +53,17 @@ export default async function TranslationTasksPage({
       </div>
 
       <div className="mt-8 grid gap-4 md:grid-cols-4">
-        <MetricCard label="翻译进度" value={`${stageFiveQueueMonitor.progressPercent}%`} detail="按本地模拟队列统计" />
-        <MetricCard label="完成章节" value={`${stageFiveQueueMonitor.succeededChapters}`} detail="模拟任务已扣费" />
-        <MetricCard label="失败章节" value={`${stageFiveQueueMonitor.failedChapters}`} detail="失败任务不扣费" />
-        <MetricCard label="待处理章节" value={`${stageFiveQueueMonitor.queuedChapters}`} detail="等待继续处理" />
+        <MetricCard label="翻译进度" value={`${stageFiveQueueMonitor.progressPercent}%`} detail="按章节统计" />
+        <MetricCard label="完成章节" value={`${stageFiveQueueMonitor.succeededChapters}`} detail="已完成翻译" />
+        <MetricCard label="失败章节" value={`${stageFiveQueueMonitor.failedChapters}`} detail="未收取费用" />
+        <MetricCard label="等待章节" value={`${stageFiveQueueMonitor.queuedChapters}`} detail="等待翻译" />
       </div>
 
       <section className="mt-8 rounded-lg border border-[var(--border)] bg-[var(--surface)]">
         <div className="border-b border-[var(--border)] p-5">
-          <h2 className="font-semibold">章节任务</h2>
+          <h2 className="font-semibold">章节进度</h2>
           <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            静态原型展示任务状态。后续会接入后台任务系统实时更新。
+            这里展示每章的翻译进度，完成后可打开阅读器继续学习。
           </p>
         </div>
         <div className="divide-y divide-[var(--border)]">

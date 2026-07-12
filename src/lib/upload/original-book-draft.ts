@@ -26,6 +26,7 @@ export type OriginalBookDraft = {
     title: string;
     originalTitle: string;
     characterCount: number;
+    content: string;
     contentPreview: string;
     warnings: EditableChapter["warnings"];
   }>;
@@ -85,6 +86,7 @@ export function buildOriginalBookDraft(input: OriginalBookDraftInput): OriginalB
       title: chapter.title,
       originalTitle: chapter.originalTitle,
       characterCount: chapter.characterCount,
+      content: chapter.content,
       contentPreview: chapter.contentPreview,
       warnings: chapter.warnings,
     })),

@@ -8,6 +8,8 @@ export type TranslationProviderSegmentResult = {
 };
 
 export type TranslationProviderInput = {
+  signal?: AbortSignal;
+  sourceLanguage?: string;
   targetLanguage: string;
   style: string;
   webLookupEnabled: boolean;
@@ -17,6 +19,8 @@ export type TranslationProviderInput = {
 
 export type TranslationProviderResult = {
   providerName: string;
+  model?: string;
+  usage?: { inputTokens: number; outputTokens: number };
   translations: TranslationProviderSegmentResult[];
 };
 

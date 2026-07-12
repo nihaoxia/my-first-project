@@ -2,6 +2,12 @@ import { AppShell } from "@/components/app-shell";
 import { NotesWorkspace } from "@/components/study/notes-workspace";
 import { StudyLibraryHeader } from "@/components/study/study-library-header";
 import type { StudyNote } from "@/lib/study/study-notes-local";
+import { getAppSession } from "@/lib/auth/app-session";
+import { getCloudServerConfig } from "@/lib/cloud/server-config";
+import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { getCloudStudyService } from "@/lib/cloud/study";
+import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-panel";
+import { deriveMockUserId } from "@/lib/auth/app-session-core";
 
 const noteItems: StudyNote[] = [
   {
@@ -22,16 +28,23 @@ const noteItems: StudyNote[] = [
   },
 ];
 
-export default function NotesPage() {
+export default async function NotesPage() {
+  const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
+  const session = persistence === "cloud" ? await getAppSession() : null;
+  const cloud = persistence === "cloud" && session?.authMode === "supabase";
+  const page = cloud ? await getCloudStudyService().list(session.userId, { kind: "note" }) : { items: [], nextCursor: null };
+  const rows = page.items;
+  const visibleNotes: StudyNote[] = cloud ? rows.map((row) => ({ id: row.id as string, title: row.title as string, content: row.content as string, source: (row.targetLabel as string) || "自由笔记", updatedAt: new Date(row.updatedAt as Date).toLocaleString("zh-CN") })) : persistence === "local" ? noteItems : [];
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <StudyLibraryHeader
         active="notes"
         title="笔记本"
         description="这里放你自己写的阅读总结、学习方法和章节感想，不依赖选中文本。"
       />
 
-      <NotesWorkspace initialNotes={noteItems} />
+      <NotesWorkspace initialNotes={visibleNotes} initialNextCursor={page.nextCursor} persistence={persistence} />
+      {cloud ? <CloudLocalImportPanel legacyMockUserId={deriveMockUserId(session.phone)} /> : null}
     </AppShell>
   );
 }

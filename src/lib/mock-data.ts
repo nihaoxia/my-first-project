@@ -172,7 +172,7 @@ export const chapters = [
     words: 2760,
     cost: "0.50",
     status: "processing" as TranslationStatus,
-    note: "发现 6 个新增术语",
+    note: "发现 6 个需要统一翻译的名字",
   },
   {
     id: "chapter-3",
@@ -236,7 +236,7 @@ export const vocabularyItems = [
     meaning: "雾境守望者",
     context: "The old mistwarden raised his lantern.",
     source: "迷雾边境 · 第一章",
-    note: "设定词，后续译名需保持一致。",
+    note: "书中专有名字，翻译时保持一致。",
   },
   {
     term: "make out",
@@ -285,7 +285,7 @@ export const failedTasks = [
     user: "186****7731",
     book: "Silent Archive",
     chapter: "Chapter 9",
-    reason: "模型响应超时",
+    reason: "翻译超时",
     time: "16:28",
   },
 ];
@@ -342,7 +342,7 @@ export const stageFiveQueueRun = runMockTranslationQueueBatch({
   tasks: stageFiveQueue.tasks,
   failedChapterIds: ["chapter-5"],
   canceledChapterIds: ["chapter-3"],
-  failureReason: "模拟质检发现段落数量异常，本章未扣费。",
+  failureReason: "本章检查未通过，未收取费用。",
 });
 
 export const stageFiveQueueSummary = getMockTranslationQueueSummary(stageFiveQueueRun.tasks);
@@ -488,17 +488,21 @@ const stageSevenReaderSourceChapters = [
   },
 ];
 
-export const stageSevenReaderView = buildReaderView({
-  chapters: stageSevenReaderSourceChapters,
-  currentChapterId: "chapter-2",
-  mode: "parallel",
-  settings: {
-    fontSize: 19,
-    lineHeight: 1.72,
-    contentWidth: 1360,
-    theme: "light",
-  },
-});
+export function buildStageSevenReaderView(currentChapterId = "chapter-2") {
+  return buildReaderView({
+    chapters: stageSevenReaderSourceChapters,
+    currentChapterId,
+    mode: "parallel",
+    settings: {
+      fontSize: 19,
+      lineHeight: 1.72,
+      contentWidth: 1360,
+      theme: "light",
+    },
+  });
+}
+
+export const stageSevenReaderView = buildStageSevenReaderView();
 
 export const stageSevenAssistantResult = buildReadingAssistantResult({
   kind: "sentence",
@@ -536,7 +540,7 @@ export const stageSevenVocabularyItems = [
     bookTitle: "迷雾边境",
     chapterId: "chapter-1",
     chapterTitle: "第一章：雾起",
-    note: "设定词，后续保持一致。",
+    note: "书中专有名字，翻译时保持一致。",
   }),
   createVocabularyDraft({
     term: "make out",
@@ -828,22 +832,22 @@ function mapMockTaskStatusToDisplayStatus(status: MockTranslationTaskStatus): Tr
 
 function getStageFiveTaskProgress(status: MockTranslationTaskStatus, progressPercent: number) {
   if (status === "succeeded") {
-    return "模拟译文已生成，费用已结算。";
+    return "译文已生成，费用已结算。";
   }
 
   if (status === "failed") {
-    return "模拟任务失败，未扣费。";
+    return "翻译失败，未扣费。";
   }
 
   if (status === "canceled") {
-    return "用户取消队列任务，未扣费。";
+    return "本章已取消，未收取费用。";
   }
 
   if (status === "running") {
-    return `模拟翻译处理中 ${progressPercent}%`;
+    return `翻译处理中 ${progressPercent}%`;
   }
 
-  return "等待本地模拟队列调度。";
+  return "等待翻译。";
 }
 
 function getStageFiveBalanceEffect(task: {

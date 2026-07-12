@@ -66,3 +66,12 @@ test("only administrators can see admin navigation", () => {
   assert.equal(shouldShowAdminNavigation(userSession), false);
   assert.equal(shouldShowAdminNavigation(adminSession), true);
 });
+
+test("treats banned sessions as unauthenticated and lets proxy-deferred roles reach server checks", () => {
+  assert.deepEqual(getRouteAccessDecision("/library", { role: "BANNED" }), {
+    type: "redirect",
+    destination: "/login?next=%2Flibrary",
+  });
+  assert.deepEqual(getRouteAccessDecision("/admin", { role: null }), { type: "allow" });
+  assert.equal(shouldShowAdminNavigation({ role: "BANNED" }), false);
+});

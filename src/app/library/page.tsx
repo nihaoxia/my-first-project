@@ -1,14 +1,15 @@
 import {
   Clock3,
-  Filter,
 } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { LibraryShelf } from "@/components/library/library-shelf";
 import { defaultShelfCollections } from "@/lib/library/library-categories";
 import { originalBooks, translatedBooks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
-
-const shelfFilters = ["上传", "翻译"];
+import { getAppSession } from "@/lib/auth/app-session";
+import { getCloudBooksService } from "@/lib/cloud/books";
+import { getCloudServerConfig } from "@/lib/cloud/server-config";
+import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
 
 const bookTiles = [
   ...translatedBooks.map((book, index) => ({
@@ -23,6 +24,7 @@ const bookTiles = [
     coverTitle: book.title,
     coverSubTitle: book.originalTitle,
     kind: book.targetLanguage,
+    source: "translation" as const,
   })),
   ...originalBooks.map((book, index) => ({
     id: book.id,
@@ -36,12 +38,22 @@ const bookTiles = [
     coverTitle: book.title,
     coverSubTitle: book.author,
     kind: book.language,
+    source: "upload" as const,
   })),
 ];
 
-export default function LibraryPage() {
+export default async function LibraryPage() {
+  const persistenceMode = resolveCloudPersistenceMode(getCloudServerConfig());
+  const session = persistenceMode === "cloud" ? await getAppSession() : null;
+  const cloudBooks = persistenceMode === "cloud" && session?.authMode === "supabase" ? await getCloudBooksService().list(session.userId) : null;
+  const visibleBookTiles = cloudBooks ? cloudBooks.map((book, index) => ({
+    id: book.id, title: book.title, detail: `${book.chapterCount} 章 / TXT`,
+    href: `/books/${encodeURIComponent(book.id)}/chapters`,
+    tone: index % 2 === 0 ? "from-emerald-950 via-teal-700 to-lime-200" : "from-slate-950 via-blue-800 to-cyan-200",
+    coverTitle: book.title, coverSubTitle: book.author ?? "云端原书", kind: book.sourceLanguage, source: "upload" as const,
+  })) : persistenceMode === "local" ? bookTiles : [];
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <div className="mx-auto max-w-7xl">
         <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface)]">
           <div className="border-b border-[var(--border)] bg-[linear-gradient(135deg,oklch(0.99_0_0),oklch(0.965_0.012_155))] px-5 py-5 md:px-7">
@@ -65,31 +77,10 @@ export default function LibraryPage() {
 
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center gap-3">
-              <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                {shelfFilters.map((filter) => (
-                  <span
-                    key={filter}
-                    className={
-                      filter === "上传"
-                        ? "shrink-0 rounded-lg bg-orange-50 px-5 py-3 text-base font-semibold text-orange-700"
-                        : "shrink-0 rounded-lg bg-white px-5 py-3 text-base font-medium text-[var(--foreground)] shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition hover:bg-[var(--surface-2)]"
-                    }
-                  >
-                    {filter}
-                  </span>
-                ))}
-              </div>
-              <span
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-white px-5 py-3 text-base font-medium text-[var(--foreground)] shadow-[0_2px_10px_rgba(15,23,42,0.05)] transition hover:bg-[var(--surface-2)]"
-              >
-                <Filter aria-hidden="true" size={18} />
-                语言：全部
-              </span>
-            </div>
           </div>
 
-          <LibraryShelf initialCollections={defaultShelfCollections} books={bookTiles} />
+          {persistenceMode === "unavailable" ? <p className="mx-7 mt-7 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800" role="alert">云端数据库或私有对象存储配置不完整，书架已停止读取；系统不会回退到本地数据。</p> : null}
+          <LibraryShelf initialCollections={defaultShelfCollections} books={visibleBookTiles} persistence={persistenceMode === "local" ? "local" : "cloud"} />
         </section>
       </div>
     </AppShell>

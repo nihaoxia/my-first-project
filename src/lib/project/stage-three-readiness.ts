@@ -21,12 +21,12 @@ export function getStageThreeReadiness(): StageThreeReadiness {
       { label: "章节重命名、跳过和恢复纯逻辑已建立", status: "complete" },
       { label: "章节预览页编辑交互已接入", status: "complete" },
       { label: "保存原版书前的数据形状已建立", status: "complete" },
+      { label: "用户隔离的私有 Supabase Storage 上传、签名下载、删除和补偿清理已接入", status: "complete" },
+      { label: "云端原版书与章节事务、API、上传页和书架读取已接入", status: "complete" },
     ],
     externalBlockers: [
-      "真实对象存储上传尚未接入，Supabase Storage 生产配置尚未完成。",
+      "目标 Supabase 项目仍需应用 migration、创建私有 Storage bucket 并配置生产密钥。",
       "真实 EPUB 解包解析器尚未接入；安装依赖前需单独确认方案和权限。",
-      "原版书和章节尚未写入真实远程数据库，后续需在 Supabase/Prisma 连接完成后接入保存。",
-      "当前上传流程仍是浏览器本地解析预览，不会把用户文件上传到服务器。",
     ],
   };
 }

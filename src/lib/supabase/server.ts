@@ -1,24 +1,30 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
-export async function createSupabaseServerClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { resolveCloudConfig } from "../cloud/config";
 
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error("Supabase server environment variables are missing.");
+export async function createSupabaseServerClient() {
+  const result = resolveCloudConfig();
+
+  if (!result.ok || !result.config.configured) {
+    throw new Error("Supabase public configuration is unavailable.");
   }
 
   const cookieStore = await cookies();
 
-  return createServerClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(result.config.supabaseUrl, result.config.supabaseAnonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          cookieStore.set(name, value, options);
+          try {
+            cookieStore.set(name, value, options);
+          } catch {
+            // Server Components cannot write cookies. The proxy refresh path
+            // persists them; Server Actions and Route Handlers can write here.
+          }
         });
       },
     },

@@ -18,8 +18,13 @@ export type UpdateStudyNoteResult =
     };
 
 export function createStudyNote(currentNotes: StudyNote[]) {
+  const nextLocalId =
+    currentNotes.reduce((highestId, note) => {
+      const match = note.id.match(/^note-local-(\d+)$/);
+      return match ? Math.max(highestId, Number(match[1])) : highestId;
+    }, 0) + 1;
   const note: StudyNote = {
-    id: `note-local-${currentNotes.length + 1}`,
+    id: `note-local-${nextLocalId}`,
     title: "未命名笔记",
     source: "个人笔记",
     updatedAt: "刚刚",

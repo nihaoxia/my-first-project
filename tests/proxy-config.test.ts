@@ -19,6 +19,16 @@ test("proxy matcher includes every protected top-level route", () => {
   }
 });
 
+test("proxy refreshes Supabase auth cookies using getUser without server secrets", () => {
+  const proxySource = readFileSync("src/proxy.ts", "utf8");
+  assert.match(proxySource, /createServerClient/);
+  assert.match(proxySource, /auth\.getUser\(\)/);
+  assert.match(proxySource, /from\("UserProfile"\)/);
+  assert.match(proxySource, /select\("role"\)/);
+  assert.doesNotMatch(proxySource, /auth\.getSession\(\)/);
+  assert.doesNotMatch(proxySource, /SUPABASE_SERVICE_ROLE_KEY|DATABASE_URL/);
+});
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

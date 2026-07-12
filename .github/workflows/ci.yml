@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://review:review@localhost:5432/stray_pages
+      MOCK_AUTH_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.5.3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Run ESLint
+        run: pnpm lint
+
+      - name: Type-check source and tests
+        run: pnpm typecheck
+
+      - name: Validate Prisma schema
+        run: pnpm db:validate
+
+      - name: Build translation MCP server
+        run: pnpm mcp:translation:build
+
+      - name: Build production application
+        run: pnpm build

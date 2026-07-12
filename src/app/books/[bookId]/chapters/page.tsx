@@ -12,6 +12,8 @@ import { routeBuilders } from "@/lib/routes";
 import { buildEditableChapters } from "@/lib/upload/chapter-editing";
 import { localUploadBookId } from "@/lib/upload/local-upload-storage";
 import { buildUploadDraft } from "@/lib/upload/upload-draft";
+import { getAppSession } from "@/lib/auth/app-session";
+import { getCloudBooksService } from "@/lib/cloud/books";
 import { parseTxtChapters, txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
 
 const parsingRules = txtChapterParsePolicy.ruleLabels;
@@ -33,7 +35,7 @@ export default async function ChapterPreviewPage({
 
   if (bookId === localUploadBookId) {
     return (
-      <AppShell>
+      <AppShell requireAuth>
         <LocalChapterPreview />
       </AppShell>
     );
@@ -41,8 +43,28 @@ export default async function ChapterPreviewPage({
 
   if (isLocalLibraryBookId(bookId)) {
     return (
-      <AppShell>
+      <AppShell requireAuth>
         <LocalStoredBookChapters bookId={bookId} />
+      </AppShell>
+    );
+  }
+
+  const session = await getAppSession();
+  if (session?.authMode === "supabase") {
+    let cloudBook;
+    try {
+      cloudBook = await getCloudBooksService().get(session.userId, bookId);
+    } catch { notFound(); }
+    return (
+      <AppShell requireAuth>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div><p className="text-sm text-[var(--muted-foreground)]">云端原书</p><h1 className="mt-1 text-3xl font-semibold">《{cloudBook.title}》</h1><p className="mt-2 text-[var(--muted-foreground)]">{cloudBook.chapterCount} 章 · 私有对象存储</p></div>
+          <div className="flex gap-3"><Button href={`/api/cloud/books/${encodeURIComponent(bookId)}/download`} variant="secondary">下载原文件</Button><Button href={routeBuilders.bookTranslate(bookId)}>创建译本<ArrowRight aria-hidden="true" size={18} /></Button></div>
+        </div>
+        <section className="mt-8 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)]">
+          <div className="border-b border-[var(--border)] p-5"><h2 className="font-semibold">服务端拆分章节</h2><p className="mt-1 text-sm text-[var(--muted-foreground)]">章节内容来自云端数据库，不读取浏览器草稿。</p></div>
+          <div className="divide-y divide-[var(--border)]">{cloudBook.chapters?.map((chapter) => <article key={chapter.index} className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-medium">{chapter.title}</h3><span className="text-sm text-[var(--muted-foreground)]">{chapter.wordCount} 字</span></div><p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-[var(--muted-foreground)]">{chapter.content}</p></article>)}</div>
+        </section>
       </AppShell>
     );
   }
@@ -54,7 +76,7 @@ export default async function ChapterPreviewPage({
   }
 
   return (
-    <AppShell>
+    <AppShell requireAuth>
       <div className="flex flex-wrap items-start justify-between gap-6">
         <div>
           <p className="text-sm text-[var(--muted-foreground)]">章节预览</p>
@@ -92,7 +114,7 @@ export default async function ChapterPreviewPage({
               <div>
                 <h2 className="font-semibold">异常提示</h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-                  发现 1 个疑似目录页，1 个较长章节。第一版支持重命名和跳过，不支持合并或拆分章节。
+                  已标出可能需要检查的章节。你可以调整标题，或跳过不需要的章节。
                 </p>
               </div>
             </div>
@@ -107,7 +129,7 @@ export default async function ChapterPreviewPage({
           <div className="border-b border-[var(--border)] p-5">
             <h2 className="font-semibold">章节列表</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              费用为静态估算示例，后续会根据语言和字数计算。
+              确认章节后，可继续选择要翻译的内容。
             </p>
           </div>
           <div className="divide-y divide-[var(--border)]">

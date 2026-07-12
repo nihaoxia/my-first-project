@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildLocalUploadDraftFromFile } from "../src/lib/upload/local-upload-draft.ts";
+import {
+  buildLocalUploadDraftFromFile,
+  decodeLocalTxtBytes,
+} from "../src/lib/upload/local-upload-draft.ts";
 
 test("reads TXT file content before building a local upload draft", async () => {
   const draft = await buildLocalUploadDraftFromFile({
@@ -20,7 +23,7 @@ test("reads TXT file content before building a local upload draft", async () => 
   assert.equal(draft.chapters.length, 2);
 });
 
-test("does not read EPUB file content before the EPUB parser exists", async () => {
+test("does not advertise EPUB as usable before the EPUB parser exists", async () => {
   let readCount = 0;
 
   const draft = await buildLocalUploadDraftFromFile({
@@ -33,19 +36,13 @@ test("does not read EPUB file content before the EPUB parser exists", async () =
   });
 
   assert.equal(readCount, 0);
-  assert.deepEqual(draft, {
-    ok: true,
-    format: "EPUB",
-    metadata: {
-      title: "迷雾边境",
-      author: "林间客",
-      format: "EPUB",
-      originalFileName: "迷雾边境 - 林间客.epub",
-    },
-    parseStatus: "needs-epub-parser",
-    chapters: [],
-    warnings: [],
-  });
+  assert.deepEqual(draft, { ok: false, reason: "unsupported-format" });
+});
+
+test("decodes GB18030 TXT bytes when they are not valid UTF-8", () => {
+  const gb18030Bytes = Uint8Array.from([0xd6, 0xd0, 0xce, 0xc4]);
+
+  assert.equal(decodeLocalTxtBytes(gb18030Bytes.buffer), "中文");
 });
 
 test("rejects unsupported files before reading content", async () => {

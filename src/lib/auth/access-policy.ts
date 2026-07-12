@@ -1,4 +1,6 @@
-import type { MockSession } from "@/lib/auth/mock-session";
+import type { AppRole } from "@/lib/auth/app-session-core";
+
+export type AccessSession = { role: AppRole | null };
 
 export type RouteAccessDecision =
   | {
@@ -19,7 +21,8 @@ const protectedPrefixes = [
   "/me",
 ];
 
-export function getRouteAccessDecision(pathWithSearch: string, session: MockSession | null): RouteAccessDecision {
+export function getRouteAccessDecision(pathWithSearch: string, candidate: AccessSession | null): RouteAccessDecision {
+  const session = candidate?.role === "BANNED" ? null : candidate;
   const { pathname, search } = splitPathAndSearch(pathWithSearch);
   const targetPath = `${pathname}${search}`;
 
@@ -38,7 +41,7 @@ export function getRouteAccessDecision(pathWithSearch: string, session: MockSess
       };
     }
 
-    if (session.role !== "ADMIN") {
+    if (session.role !== null && session.role !== "ADMIN") {
       return {
         type: "redirect",
         destination: "/library?error=admin",
@@ -56,7 +59,7 @@ export function getRouteAccessDecision(pathWithSearch: string, session: MockSess
   return { type: "allow" };
 }
 
-export function shouldShowAdminNavigation(session: MockSession | null) {
+export function shouldShowAdminNavigation(session: AccessSession | null) {
   return session?.role === "ADMIN";
 }
 

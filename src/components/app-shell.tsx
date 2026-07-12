@@ -9,12 +9,14 @@ import {
   WalletCards,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { redirect } from "next/navigation";
 import { shouldShowAdminNavigation } from "@/lib/auth/access-policy";
 import { buildMockUserProfile } from "@/lib/auth/mock-user-profile";
-import { getMockSession } from "@/lib/auth/mock-session";
-import { logoutMockSession } from "@/app/login/actions";
+import { getAppSession } from "@/lib/auth/app-session";
+import { logoutSession } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { routes } from "@/lib/routes";
+import { deriveLocalStorageScope } from "@/lib/storage/local-storage-scope";
 
 const navItems = [
   { href: routes.library, label: "书架", icon: Library },
@@ -28,33 +30,51 @@ const navItems = [
 export async function AppShell({
   children,
   wide = false,
+  requireAuth = false,
 }: {
   children: React.ReactNode;
   wide?: boolean;
+  requireAuth?: boolean;
 }) {
-  const session = await getMockSession();
-  const profile = buildMockUserProfile(session);
+  const session = await getAppSession();
+  const usableSession = session && session.role !== "BANNED" ? session : null;
+  if (requireAuth && !usableSession) redirect("/login");
+  const profile = buildMockUserProfile(
+    usableSession
+      ? { phone: usableSession.phone, role: usableSession.role === "ADMIN" ? "ADMIN" : "USER" }
+      : null,
+  );
+  const localStorageScope = usableSession ? deriveLocalStorageScope(usableSession.userId) : undefined;
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || shouldShowAdminNavigation(session));
 
   return (
-    <div className="min-h-screen bg-[var(--background)]">
+    <div
+      className="min-h-screen bg-[var(--background)]"
+      data-local-storage-scope={localStorageScope}
+    >
       <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[var(--surface)]">
         <div
           className={clsx(
-            "mx-auto flex h-16 items-center justify-between gap-4 px-5 md:px-6",
+            "mx-auto flex min-h-16 flex-wrap items-center justify-between gap-2 px-5 py-2 sm:h-16 sm:flex-nowrap sm:gap-4 sm:py-0 md:px-6",
             wide ? "max-w-[1760px]" : "max-w-7xl",
           )}
         >
           <a className="shrink-0 text-base font-semibold tracking-normal" href={routes.home}>
             Stray Pages
           </a>
-          <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
+          <nav className="order-3 grid w-full grid-flow-col auto-cols-fr items-center gap-1 sm:order-none sm:flex sm:min-w-0 sm:w-auto">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               return (
-                <Button key={item.href} href={item.href} variant="ghost">
+                <Button
+                  key={item.href}
+                  className="w-full px-2 sm:w-auto sm:px-4"
+                  href={item.href}
+                  variant="ghost"
+                  aria-label={item.label}
+                >
                   <Icon aria-hidden="true" size={17} />
-                  {item.label}
+                  <span className="hidden sm:inline">{item.label}</span>
                 </Button>
               );
             })}
@@ -71,10 +91,14 @@ export async function AppShell({
               <span className="rounded-sm border border-[var(--border)] px-2 py-1 text-xs text-[var(--muted-foreground)] lg:hidden">
                 {profile.roleLabel}
               </span>
-              <form action={logoutMockSession}>
-                <Button variant="secondary">
+              <form action={logoutSession}>
+                <Button
+                  className="px-2 sm:px-4"
+                  variant="secondary"
+                  aria-label="退出登录"
+                >
                   <LogOut aria-hidden="true" size={17} />
-                  退出
+                  <span className="hidden sm:inline">退出</span>
                 </Button>
               </form>
             </div>
