@@ -10,6 +10,7 @@ const serverConfigSchema = z.object({
   NODE_ENV: z.string().optional(),
   PORT: optionalPort,
   MCP_TRANSLATION_PORT: optionalPort,
+  MCP_TRANSLATION_HOST: z.enum(["127.0.0.1", "0.0.0.0"]).default("127.0.0.1"),
   TRANSLATION_MCP_SECRET: z.string().min(32),
   AI_BASE_URL: z.url(),
   AI_API_KEY: z.string().min(1),
@@ -20,6 +21,7 @@ const serverConfigSchema = z.object({
 
 export type TranslationMcpServerConfig = {
   port: number;
+  listenHost: "127.0.0.1" | "0.0.0.0";
   mcpSecret: string;
   aiBaseUrl: string;
   aiApiKey: string;
@@ -42,6 +44,7 @@ export function parseTranslationMcpServerConfig(
     ok: true,
     value: {
       port: result.data.MCP_TRANSLATION_PORT ?? result.data.PORT ?? 8787,
+      listenHost: result.data.MCP_TRANSLATION_HOST,
       mcpSecret: result.data.TRANSLATION_MCP_SECRET,
       aiBaseUrl: result.data.AI_BASE_URL.replace(/\/+$/, ""),
       aiApiKey: result.data.AI_API_KEY,

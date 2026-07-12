@@ -1,0 +1,18 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  - name: auth
+    url: http://supabase-auth:9999/
+    routes:
+      - name: auth-route
+        strip_path: true
+        paths:
+          - /auth/v1/
+  - name: rest
+    url: http://supabase-rest:3000/
+    routes:
+      - name: rest-route
+        strip_path: true
+        paths:
+          - /rest/v1/

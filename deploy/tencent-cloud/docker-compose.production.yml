@@ -1,0 +1,204 @@
+name: stray-pages-production
+
+x-app-security: &app-security
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  restart: unless-stopped
+
+services:
+  edge:
+    image: ${TCR_NAMESPACE}/caddy:2.10.2
+    environment:
+      APP_HOST: ${APP_HOST}
+      API_HOST: ${API_HOST}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    restart: unless-stopped
+
+  web:
+    <<: *app-security
+    image: ${TCR_NAMESPACE}/stray-pages-web:${RELEASE_SHA}
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+      CLOUD_MODE: required
+      AUTH_MODE: supabase
+      MOCK_AUTH_ENABLED: "false"
+      NEXT_PUBLIC_APP_URL: https://${APP_HOST}
+      NEXT_PUBLIC_SUPABASE_URL: https://${API_HOST}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      DATABASE_URL: ${DATABASE_URL:-}
+      TRANSLATION_MCP_URL: http://translation-mcp:8787/mcp
+      TRANSLATION_MCP_SECRET: ${TRANSLATION_MCP_SECRET:-}
+      TRANSLATION_MCP_TIMEOUT_MS: "180000"
+    expose:
+      - "3000"
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - edge-net
+      - private-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      translation-mcp:
+        condition: service_healthy
+
+  translation-mcp:
+    <<: *app-security
+    image: ${TCR_NAMESPACE}/stray-pages-translation-mcp:${RELEASE_SHA}
+    environment:
+      NODE_ENV: production
+      MCP_TRANSLATION_HOST: 0.0.0.0
+      MCP_TRANSLATION_PORT: "8787"
+      MCP_TRUSTED_HOSTS: translation-mcp
+      TRANSLATION_MCP_SECRET: ${TRANSLATION_MCP_SECRET:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_REQUEST_TIMEOUT_MS: "60000"
+    expose:
+      - "8787"
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - private-net
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:8787/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 20s
+
+  sms-hook:
+    <<: *app-security
+    image: ${TCR_NAMESPACE}/stray-pages-sms-hook:${RELEASE_SHA}
+    environment:
+      NODE_ENV: production
+      SMS_HOOK_PORT: "9000"
+      SMS_HOOK_SECRET: ${SMS_HOOK_SECRET:-}
+      TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID:-}
+      TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY:-}
+      TENCENT_SMS_SDK_APP_ID: ${TENCENT_SMS_SDK_APP_ID:-}
+      TENCENT_SMS_SIGN_NAME: ${TENCENT_SMS_SIGN_NAME:-}
+      TENCENT_SMS_TEMPLATE_ID: ${TENCENT_SMS_TEMPLATE_ID:-}
+      TENCENT_SMS_REGION: ap-guangzhou
+    expose:
+      - "9000"
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - private-net
+
+  supabase-gateway:
+    image: ${TCR_NAMESPACE}/supabase-kong:2.8.1
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+    volumes:
+      - ./kong.yml:/home/kong/kong.yml:ro
+    expose:
+      - "8000"
+    networks:
+      - edge-net
+      - private-net
+    depends_on:
+      supabase-auth:
+        condition: service_started
+      supabase-rest:
+        condition: service_started
+    restart: unless-stopped
+
+  supabase-auth:
+    image: ${TCR_NAMESPACE}/supabase-gotrue:v2.177.0
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: "9999"
+      API_EXTERNAL_URL: https://${API_HOST}
+      GOTRUE_SITE_URL: https://${APP_HOST}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: ${GOTRUE_DB_DATABASE_URL:-}
+      GOTRUE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      GOTRUE_JWT_EXP: "3600"
+      GOTRUE_DISABLE_SIGNUP: "false"
+    expose:
+      - "9999"
+    networks:
+      - private-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  supabase-rest:
+    image: ${TCR_NAMESPACE}/postgrest:v12.2.12
+    environment:
+      PGRST_DB_URI: ${POSTGREST_DB_URI:-}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+    expose:
+      - "3000"
+    networks:
+      - private-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: ${TCR_NAMESPACE}/supabase-postgres:17.4.1.074
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: supabase_admin
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    expose:
+      - "5432"
+    networks:
+      - private-net
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U supabase_admin -d postgres
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    stop_grace_period: 60s
+    restart: unless-stopped
+
+networks:
+  edge-net:
+  private-net:
+    internal: true
+
+volumes:
+  caddy-data:
+  caddy-config:
+  postgres-data:

@@ -1,0 +1,16 @@
+.git
+.github
+.worktrees
+.next
+dist
+node_modules
+coverage
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+deploy/tencent-cloud/*.local
+docs
+tests
+*.log

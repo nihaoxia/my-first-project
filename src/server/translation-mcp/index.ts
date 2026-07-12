@@ -31,8 +31,8 @@ if (!configResult.ok) {
     trustedHosts: config.trustedHosts,
     execute: (input, signal) => translateSegmentsWithGateway(input, gateway, 3, signal),
   });
-  const httpServer = app.listen(config.port, "127.0.0.1", () => {
-    console.error(`[translation-mcp] listening on 127.0.0.1:${config.port}`);
+  const httpServer = app.listen(config.port, config.listenHost, () => {
+    console.error(`[translation-mcp] listening on ${config.listenHost}:${config.port}`);
   });
 
   function shutdown(signal: string) {
