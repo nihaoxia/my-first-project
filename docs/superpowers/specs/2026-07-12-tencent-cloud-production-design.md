@@ -96,7 +96,7 @@ PostgreSQL 数据目录每日至少一次云硬盘快照；同时每日生成加
 对象键继续由服务端生成，格式保持用户与书籍绑定：
 
 ```text
-users/{userId}/original-books/{bookId}/source.txt
+{userId}/{bookId}/original.txt
 ```
 
 安全边界：
