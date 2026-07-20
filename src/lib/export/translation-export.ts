@@ -17,23 +17,8 @@ export type TextExportResult = {
   content: string;
 };
 
-export type EpubExportDraft = {
-  fileName: string;
-  packaged: false;
-  title: string;
-  originalTitle: string;
-  targetLanguage: string;
-  chapterFiles: Array<{
-    chapterId: string;
-    title: string;
-    path: string;
-    content: string;
-  }>;
-  note: string;
-};
-
 export function buildTranslatedBookTxtExport(input: TranslatedBookExportInput): TextExportResult {
-  const chapters = orderChapters(input.chapters, input.chapterOrder);
+  const chapters = orderTranslatedBookChapters(input.chapters, input.chapterOrder);
   const header = [input.title, `原书：${input.originalTitle}`, `目标语言：${input.targetLanguage}`].join(
     "\n",
   );
@@ -44,31 +29,12 @@ export function buildTranslatedBookTxtExport(input: TranslatedBookExportInput): 
   );
 
   return {
-    fileName: `${slugifyFileName(input.title)}.txt`,
+    fileName: `${buildExportFileSlug(input.title)}.txt`,
     content: [header, ...chapterBlocks].join("\n\n"),
   };
 }
 
-export function buildEpubExportDraft(input: TranslatedBookExportInput): EpubExportDraft {
-  const chapters = orderChapters(input.chapters, input.chapterOrder);
-
-  return {
-    fileName: `${slugifyFileName(input.title)}.epub`,
-    packaged: false,
-    title: input.title,
-    originalTitle: input.originalTitle,
-    targetLanguage: input.targetLanguage,
-    chapterFiles: chapters.map((chapter) => ({
-      chapterId: chapter.id,
-      title: chapter.title,
-      path: `chapters/${chapter.id}.xhtml`,
-      content: buildChapterXhtml(chapter),
-    })),
-    note: "尚未生成真实 EPUB 文件；当前仅保留后续打包所需的本地草稿数据。",
-  };
-}
-
-function orderChapters(
+export function orderTranslatedBookChapters(
   chapters: TranslatedBookExportChapter[],
   chapterOrder: string[] | undefined,
 ) {
@@ -86,25 +52,7 @@ function orderChapters(
   return [...ordered, ...remaining];
 }
 
-function buildChapterXhtml(chapter: TranslatedBookExportChapter) {
-  const paragraphs = chapter.paragraphs
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean)
-    .map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`)
-    .join("\n");
-
-  return [`<h1>${escapeHtml(chapter.title)}</h1>`, paragraphs].filter(Boolean).join("\n");
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function slugifyFileName(value: string) {
+export function buildExportFileSlug(value: string) {
   const transliterated = value.replace(
     /[\u4e00-\u9fa5]/g,
     (character) => ` ${pinyinMap[character] ?? ""} `,

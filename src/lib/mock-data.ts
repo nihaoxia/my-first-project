@@ -11,10 +11,8 @@ import {
 import { buildMockAccountSummary, formatYuanFromCents } from "@/lib/account/mock-account-summary";
 import { buildMockBalanceRecords } from "@/lib/account/mock-balance-ledger";
 import { buildMyPageSummary } from "@/lib/account/my-page-summary";
-import {
-  buildEpubExportDraft,
-  buildTranslatedBookTxtExport,
-} from "@/lib/export/translation-export";
+import { buildEpubExportFileName } from "@/lib/export/epub-export";
+import { buildTranslatedBookTxtExport } from "@/lib/export/translation-export";
 import {
   buildSentenceMarkdownExport,
   buildVocabularyCsvExport,
@@ -621,7 +619,7 @@ const stageEightTranslatedBookInput = {
 };
 
 export const stageEightTxtExport = buildTranslatedBookTxtExport(stageEightTranslatedBookInput);
-export const stageEightEpubDraft = buildEpubExportDraft(stageEightTranslatedBookInput);
+export const stageEightEpubFileName = buildEpubExportFileName(stageEightTranslatedBookInput.title);
 export const stageEightVocabularyCsvExport = buildVocabularyCsvExport({
   bookTitle: "迷雾边境",
   items: stageSevenVocabularyItems,
@@ -633,7 +631,7 @@ export const stageEightSentenceMarkdownExport = buildSentenceMarkdownExport({
 
 export const stageEightExportFiles = [
   { fileName: stageEightTxtExport.fileName, format: "TXT" },
-  { fileName: stageEightEpubDraft.fileName, format: "EPUB 草稿" },
+  { fileName: stageEightEpubFileName, format: "EPUB" },
   { fileName: stageEightVocabularyCsvExport.fileName, format: "CSV" },
   { fileName: stageEightSentenceMarkdownExport.fileName, format: "Markdown" },
 ];
