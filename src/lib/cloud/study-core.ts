@@ -91,7 +91,7 @@ export function createCloudStudyService(input: { repository: CloudStudyRepositor
   };
 }
 
-export async function listAllStudyItemsForExport(service: { list(userId: string, raw: unknown): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }> }, userId: string, kind: "vocabulary" | "sentence") {
+export async function listAllStudyItemsForExport(service: { list(userId: string, raw: unknown): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }> }, userId: string, kind: "vocabulary" | "sentence" | "note") {
   const items: Array<Record<string, unknown>> = [];
   let cursor: string | undefined;
   for (;;) {

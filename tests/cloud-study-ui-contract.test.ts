@@ -25,8 +25,9 @@ test("cloud study UI can load additional cursor pages and exports use a bounded 
   assert.match(core, /MAX_STUDY_EXPORT_ITEMS = 10_000/);
   assert.match(core, /listAllStudyItemsForExport/);
   assert.match(core, /STUDY_EXPORT_LIMIT/);
-  for (const page of ["src/app/study/vocabulary/page.tsx", "src/app/study/sentences/page.tsx"]) {
+  for (const page of ["src/app/study/vocabulary/page.tsx", "src/app/study/sentences/page.tsx", "src/app/study/notes/page.tsx"]) {
     const text = source(page);
+    assert.match(text, /listAllStudyItemsForExport/);
     assert.match(text, /STUDY_EXPORT_LIMIT/);
     assert.match(text, /超过 10000 条/);
   }

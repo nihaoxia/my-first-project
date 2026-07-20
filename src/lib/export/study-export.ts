@@ -2,6 +2,7 @@ import type {
   SentenceStudyItem,
   VocabularyStudyItem,
 } from "@/lib/reader/study-collections";
+import type { StudyNote } from "@/lib/study/study-notes-local";
 
 export type StudyExportInput<TItem> = {
   bookTitle: string;
@@ -52,6 +53,24 @@ export function buildSentenceMarkdownExport(
   return {
     fileName: `${slugifyFileName(input.bookTitle)}-sentences.md`,
     content: [`# ${input.bookTitle} · 句子本`, ...sections].join("\n\n"),
+  };
+}
+
+export function buildNotesMarkdownExport(input: { notes: StudyNote[] }): StudyExportResult {
+  const sections = input.notes.map((note, index) =>
+    [
+      `## ${index + 1}. ${note.title.trim()}`,
+      `**来源：** ${note.source || "自由笔记"}`,
+      `**更新时间：** ${note.updatedAt}`,
+      note.content.trim(),
+    ]
+      .filter(Boolean)
+      .join("\n\n"),
+  );
+
+  return {
+    fileName: "stray-pages-notes.md",
+    content: ["# Stray Pages · 笔记本", ...sections].join("\n\n"),
   };
 }
 

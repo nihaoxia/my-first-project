@@ -7,6 +7,7 @@ import { getCloudServerConfig } from "@/lib/cloud/server-config";
 import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
 import { getCloudStudyService } from "@/lib/cloud/study";
 import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-panel";
+import { CloudStudyError, listAllStudyItemsForExport } from "@/lib/cloud/study-core";
 
 const noteItems: StudyNote[] = [
   {
@@ -33,7 +34,26 @@ export default async function NotesPage() {
   const cloud = persistence === "cloud" && Boolean(session);
   const page = cloud && session ? await getCloudStudyService().list(session.user.id, { kind: "note" }) : { items: [], nextCursor: null };
   const rows = page.items;
-  const visibleNotes: StudyNote[] = cloud ? rows.map((row) => ({ id: row.id as string, title: row.title as string, content: row.content as string, source: (row.targetLabel as string) || "自由笔记", updatedAt: new Date(row.updatedAt as Date).toLocaleString("zh-CN") })) : persistence === "local" ? noteItems : [];
+  const visibleNotes: StudyNote[] = cloud ? rows.map(toStudyNote) : persistence === "local" ? noteItems : [];
+  let initialExportNotes: StudyNote[] = [];
+  let exportLimitReached = false;
+
+  if (cloud && session) {
+    try {
+      initialExportNotes = (await listAllStudyItemsForExport(
+        getCloudStudyService(),
+        session.user.id,
+        "note",
+      )).map(toStudyNote);
+    } catch (error) {
+      if (error instanceof CloudStudyError && error.code === "STUDY_EXPORT_LIMIT") {
+        exportLimitReached = true;
+      } else {
+        throw error;
+      }
+    }
+  }
+
   return (
     <AppShell requireAuth>
       <StudyLibraryHeader
@@ -42,8 +62,30 @@ export default async function NotesPage() {
         description="这里放你自己写的阅读总结、学习方法和章节感想，不依赖选中文本。"
       />
 
-      <NotesWorkspace initialNotes={visibleNotes} initialNextCursor={page.nextCursor} persistence={persistence} />
+      {exportLimitReached ? (
+        <p className="mt-5 text-sm text-[var(--muted-foreground)]">
+          云端笔记超过 10000 条，请先缩小数据范围再导出。
+        </p>
+      ) : null}
+
+      <NotesWorkspace
+        initialNotes={visibleNotes}
+        initialExportNotes={initialExportNotes}
+        initialNextCursor={page.nextCursor}
+        exportLimitReached={exportLimitReached}
+        persistence={persistence}
+      />
       {cloud && session ? <CloudLocalImportPanel legacyMockUserId={session.user.id} /> : null}
     </AppShell>
   );
+}
+
+function toStudyNote(row: Record<string, unknown>): StudyNote {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    content: row.content as string,
+    source: (row.targetLabel as string) || "自由笔记",
+    updatedAt: new Date(row.updatedAt as Date).toLocaleString("zh-CN"),
+  };
 }

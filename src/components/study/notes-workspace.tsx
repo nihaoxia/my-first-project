@@ -3,6 +3,8 @@
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
+import { TextDownloadButton } from "@/components/export/text-download-button";
+import { buildNotesMarkdownExport } from "@/lib/export/study-export";
 import {
   createStudyNote,
   deleteStudyNote,
@@ -23,8 +25,21 @@ import {
 
 const localNotesChangedEvent = "stray-pages.study-notes-changed";
 
-export function NotesWorkspace({ initialNotes, initialNextCursor = null, persistence = "local" }: { initialNotes: StudyNote[]; initialNextCursor?: string | null; persistence?: "local" | "cloud" | "unavailable" }) {
+export function NotesWorkspace({
+  initialNotes,
+  initialExportNotes = [],
+  initialNextCursor = null,
+  exportLimitReached = false,
+  persistence = "local",
+}: {
+  initialNotes: StudyNote[];
+  initialExportNotes?: StudyNote[];
+  initialNextCursor?: string | null;
+  exportLimitReached?: boolean;
+  persistence?: "local" | "cloud" | "unavailable";
+}) {
   const [cloudNotes, setCloudNotes] = useState(initialNotes);
+  const [cloudExportNotes, setCloudExportNotes] = useState(initialExportNotes);
   const [nextCursor, setNextCursor] = useState(initialNextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
   const rawNotes = useSyncExternalStore(
@@ -37,6 +52,8 @@ export function NotesWorkspace({ initialNotes, initialNextCursor = null, persist
     [rawNotes],
   );
   const notes = persistence === "cloud" ? cloudNotes : persistence === "local" ? (rawNotes ? notesParseResult.records : initialNotes) : [];
+  const exportNotes = persistence === "cloud" ? cloudExportNotes : notes;
+  const exportData = useMemo(() => buildNotesMarkdownExport({ notes: exportNotes }), [exportNotes]);
   const [drafts, setDrafts] = useState<Record<string, { title: string; content: string }>>({});
   const [notice, setNotice] = useState("");
   const [errorNoteId, setErrorNoteId] = useState("");
@@ -69,7 +86,9 @@ export function NotesWorkspace({ initialNotes, initialNextCursor = null, persist
       const response = await fetch("/api/cloud/study", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: "note", title: "新笔记", content: "", target: { type: "freeform" } }) });
       if (!response.ok) { setNotice("云端新建失败，请稍后重试。"); return; }
       const body = await response.json() as { item: { id: string; title: string; content: string; targetLabel?: string; updatedAt: string } };
-      setCloudNotes((current) => [{ id: body.item.id, title: body.item.title, content: body.item.content, source: body.item.targetLabel || "自由笔记", updatedAt: new Date(body.item.updatedAt).toLocaleString("zh-CN") }, ...current]);
+      const created = { id: body.item.id, title: body.item.title, content: body.item.content, source: body.item.targetLabel || "自由笔记", updatedAt: new Date(body.item.updatedAt).toLocaleString("zh-CN") };
+      setCloudNotes((current) => [created, ...current]);
+      setCloudExportNotes((current) => [created, ...current]);
       setNotice("已新建笔记"); setErrorNoteId(""); return;
     }
     const result = createStudyNote(notes);
@@ -93,7 +112,9 @@ export function NotesWorkspace({ initialNotes, initialNextCursor = null, persist
       if (!draft.title.trim()) { setErrorNoteId(noteId); setNotice("笔记标题不能为空"); return; }
       const response = await fetch("/api/cloud/study", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: noteId, kind: "note", title: draft.title, content: draft.content }) });
       if (!response.ok) { setNotice("云端保存失败，请刷新后重试。"); return; }
-      setCloudNotes((current) => current.map((note) => note.id === noteId ? { ...note, title: draft.title.trim(), content: draft.content.trim(), updatedAt: new Date().toLocaleString("zh-CN") } : note));
+      const updateSavedNote = (note: StudyNote) => note.id === noteId ? { ...note, title: draft.title.trim(), content: draft.content.trim(), updatedAt: new Date().toLocaleString("zh-CN") } : note;
+      setCloudNotes((current) => current.map(updateSavedNote));
+      setCloudExportNotes((current) => current.map(updateSavedNote));
       setDrafts((current) => { const next = { ...current }; delete next[noteId]; return next; });
       setNotice("已保存笔记"); setErrorNoteId(""); return;
     }
@@ -128,6 +149,7 @@ export function NotesWorkspace({ initialNotes, initialNextCursor = null, persist
       const response = await fetch(`/api/cloud/study?kind=note&id=${encodeURIComponent(noteId)}`, { method: "DELETE" });
       if (!response.ok) { setNotice("云端删除失败，请刷新后重试。"); return; }
       setCloudNotes((current) => current.filter((note) => note.id !== noteId));
+      setCloudExportNotes((current) => current.filter((note) => note.id !== noteId));
       setDrafts((current) => { const next = { ...current }; delete next[noteId]; return next; });
       setNotice("已删除笔记"); setErrorNoteId(""); return;
     }
@@ -182,10 +204,20 @@ export function NotesWorkspace({ initialNotes, initialNextCursor = null, persist
   return (
     <>
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <Button type="button" onClick={handleCreateNote}>
-          <Plus aria-hidden="true" size={17} />
-          新建笔记
-        </Button>
+        <div className="flex flex-wrap items-start gap-3">
+          <Button type="button" onClick={handleCreateNote}>
+            <Plus aria-hidden="true" size={17} />
+            新建笔记
+          </Button>
+          {persistence !== "unavailable" && !exportLimitReached && !storageWarning ? (
+            <TextDownloadButton
+              content={exportData.content}
+              fileName={exportData.fileName}
+              kind="markdown"
+              label="导出 Markdown"
+            />
+          ) : null}
+        </div>
         {notice ? <p className="text-sm font-medium text-[var(--primary)]">{notice}</p> : null}
       </div>
 

@@ -132,6 +132,17 @@ test("bounded cloud export follows every cursor page and rejects data beyond 100
   const all = await listAllStudyItemsForExport({ list: async (_owner, raw) => pages.get((raw as { cursor?: string }).cursor)! }, userId, "vocabulary");
   assert.deepEqual(all.map((row) => row.id), ["a", "b"]);
 
+  const noteQueries: unknown[] = [];
+  const notes = await listAllStudyItemsForExport({ list: async (_owner, raw) => {
+    noteQueries.push(raw);
+    return pages.get((raw as { cursor?: string }).cursor)!;
+  } }, userId, "note");
+  assert.deepEqual(notes.map((row) => row.id), ["a", "b"]);
+  assert.deepEqual(noteQueries, [
+    { kind: "note", limit: 100 },
+    { kind: "note", limit: 100, cursor: itemId },
+  ]);
+
   let page = 0;
   await assert.rejects(listAllStudyItemsForExport({ list: async () => {
     page += 1;
