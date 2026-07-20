@@ -32,3 +32,20 @@ test("records safe EPUB import and real local EPUB 3 export as completed", () =>
     assert.match(document, /云端导出文件保存/);
   }
 });
+
+test("documents browser-local speech without claiming remote audio capabilities", () => {
+  const readme = readFileSync("README.md", "utf8");
+  const roadmap = readFileSync("docs/ROADMAP.md", "utf8");
+
+  assert.match(readme, /只使用系统本地声音的浏览器本地语音朗读/u);
+  assert.match(roadmap, /当前章节.*系统本地声音.*已完成/u);
+  assert.doesNotMatch(readme, /^-[ \t]*语音朗读；$/mu);
+
+  for (const document of [readme, roadmap]) {
+    assert.match(document, /云端 TTS/u);
+    assert.match(document, /远程声音/u);
+    assert.match(document, /音频导出/u);
+    assert.match(document, /跨章节后台连续播放/u);
+    assert.doesNotMatch(document, /已接入云端语音|已生成音频文件/u);
+  }
+});
