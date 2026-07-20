@@ -940,4 +940,14 @@
 - 提交前本地代码审查发现并修复两个边界：纯 `#fragment` 链接现在安全解析为当前文档；OPF 只读取 `<manifest>` 的直接 `<item>` 与 `<spine>` 的直接 `<itemref>`，不会被 metadata 内的同名伪元素污染。两项都先补失败测试再修复。
 - 最终完整验证：`pnpm test` 共 761 项通过、0 项失败；`pnpm lint`、`pnpm typecheck`、`pnpm build`、`pnpm verify:zero-cost` 和 `git diff --check` 均以 0 退出。生产构建完成 18 个静态页面生成；仅保留 worktree 多 lockfile 根目录推断和 edge runtime 静态生成提示，没有构建错误。
 - 许可证复核确认 `fflate 0.8.3`、`@xmldom/xmldom 0.9.10` 均为 MIT 且运行时依赖数为 0；敏感扫描未发现 AKID 或私钥材料。
-- 真实 EPUB 二进制导出、MOBI/PDF、DRM、固定布局、漫画、多 rendition、图片/排版保留与云端 EPUB 原文件保存仍未实现；EdgeOne 平台操作继续暂停，本轮没有创建或写入任何云资源。
+- MOBI/PDF、DRM、固定布局、漫画、多 rendition、图片/排版保留与云端 EPUB 原文件保存仍未实现；EdgeOne 平台操作继续暂停，本轮没有创建或写入任何云资源。
+
+### 浏览器本地 EPUB 3 导出
+
+- 新增标准最小 EPUB 3 导出器：严格校验译本输入和 XML 字符，按权威章节顺序生成逐章 XHTML、container、OPF、nav 和内置 CSS，并使用 `fflate` 异步打包真实 `.epub` 二进制。
+- `mimetype` 固定为归档首项且不压缩；生成后复用安全 EPUB 归档检查器自检，并由现有 EPUB 解析器完成回读测试，确保 manifest、spine、nav 和章节正文一致。
+- 通用浏览器下载核心同时支持文本与 `Uint8Array`，成功和失败路径都会移除临时链接并回收对象 URL。EPUB 只在用户点击后生成，不上传、不额外访问网络、不写 Blob、不调用模型。
+- 本地与云端阅读器都从当前已取得且有权读取的完整译本章节构造同一份 TXT/EPUB 输入；云端页面没有增加服务查询或对象读取。
+- 八种产品语言映射到 BCP 47；空书、非法顺序、重复章节、非法 XML 字符和章节/段落/总字节超限都稳定 fail closed，不生成半本书。
+- TDD 红灯证据：EPUB builder、ZIP 回读、二进制下载、下载按钮、阅读器接线、阶段状态和文档能力合同均先因功能缺失或旧描述失败，再以最小实现转绿。
+- 当前未实现范围保持明确：EPUB 导出封面、图片、字体、固定布局和 DRM，云端导出文件保存，MOBI/PDF，以及服务端导出历史。
