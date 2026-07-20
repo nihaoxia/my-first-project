@@ -6,6 +6,12 @@ export type TextDownloadInput = {
   kind: TextDownloadKind;
 };
 
+export type BrowserDownloadInput = {
+  fileName: string;
+  data: string | Uint8Array;
+  mimeType: string;
+};
+
 export type TextDownloadResult =
   | { ok: true }
   | { ok: false; code: "INVALID_FILE_NAME" | "DOWNLOAD_FAILED" };
@@ -18,7 +24,7 @@ export type TextDownloadLink = {
 };
 
 export type TextDownloadRuntime = {
-  createBlob(content: string, mimeType: string): unknown;
+  createBlob(content: string | Uint8Array, mimeType: string): unknown;
   createObjectUrl(blob: unknown): string;
   revokeObjectUrl(url: string): void;
   createLink(): TextDownloadLink;
@@ -39,6 +45,16 @@ export function triggerTextDownload(
   input: TextDownloadInput,
   runtime: TextDownloadRuntime,
 ): TextDownloadResult {
+  return triggerBrowserDownload(
+    { fileName: input.fileName, data: input.content, mimeType: getTextDownloadMimeType(input.kind) },
+    runtime,
+  );
+}
+
+export function triggerBrowserDownload(
+  input: BrowserDownloadInput,
+  runtime: TextDownloadRuntime,
+): TextDownloadResult {
   if (!isSafeFileName(input.fileName)) {
     return { ok: false, code: "INVALID_FILE_NAME" };
   }
@@ -47,7 +63,7 @@ export function triggerTextDownload(
   let link: TextDownloadLink | undefined;
 
   try {
-    const blob = runtime.createBlob(input.content, getTextDownloadMimeType(input.kind));
+    const blob = runtime.createBlob(input.data, input.mimeType);
     url = runtime.createObjectUrl(blob);
     link = runtime.createLink();
     link.href = url;

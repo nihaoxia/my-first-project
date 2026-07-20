@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   buildTextDownloadNotice,
   getTextDownloadMimeType,
+  triggerBrowserDownload,
   triggerTextDownload,
   type TextDownloadRuntime,
 } from "../src/lib/export/browser-download.ts";
@@ -58,6 +59,17 @@ test("downloads UTF-8 text and always releases the object URL", () => {
     "link:remove",
     "url:revoke:blob:test",
   ]);
+});
+
+test("downloads binary EPUB bytes with the exact MIME type", () => {
+  const events: string[] = [];
+  const bytes = Uint8Array.from([80, 75]);
+  const result = triggerBrowserDownload(
+    { fileName: "book.epub", data: bytes, mimeType: "application/epub+zip" },
+    runtime(events),
+  );
+  assert.deepEqual(result, { ok: true });
+  assert.match(events[0], /^blob:application\/epub\+zip:/u);
 });
 
 test("rejects path-like file names before touching the browser runtime", () => {

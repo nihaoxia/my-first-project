@@ -50,7 +50,7 @@ export function TextDownloadButton({
 function createBrowserDownloadRuntime(): TextDownloadRuntime {
   return {
     createBlob(content, mimeType) {
-      return new Blob([content], { type: mimeType });
+      return new Blob([content as BlobPart], { type: mimeType });
     },
     createObjectUrl(blob) {
       return URL.createObjectURL(blob as Blob);
