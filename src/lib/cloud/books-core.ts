@@ -9,7 +9,8 @@ export type CloudBookErrorCode =
   | "INVALID_CHAPTER_EDITS" | "CLEANUP_PERSIST_FAILED"
   | "TOO_MANY_CHAPTERS"
   | "CHAPTER_EDITS_TOO_LARGE"
-  | "BOOK_STORAGE_FAILED" | "BOOK_CREATE_FAILED" | "BOOK_UPDATE_FAILED" | "BOOK_DELETE_FAILED";
+  | "BOOK_STORAGE_FAILED" | "BOOK_CREATE_FAILED" | "BOOK_UPDATE_FAILED" | "BOOK_DELETE_FAILED"
+  | "BOOK_CONFLICT";
 
 export class CloudBookError extends Error {
   readonly code: CloudBookErrorCode;
@@ -130,7 +131,11 @@ export function createCloudBooksService(dependencies: { repository: CloudBooksRe
         throw new CloudBookError("BOOK_CREATE_FAILED");
       }
     },
-    async list(userId: string): Promise<CloudBookDto[]> { assertUserId(userId); return (await dependencies.repository.list(userId)).map((row) => toDto(row)); },
+    async list(userId: string): Promise<CloudBookDto[]> {
+      assertUserId(userId);
+      try { return (await dependencies.repository.list(userId)).map((row) => toDto(row)); }
+      catch (error) { throw mapRepositoryReadError(error); }
+    },
     async get(userId: string, bookId: string): Promise<CloudBookDto> { const row = await owned(dependencies.repository, userId, bookId); return toDto(row, true); },
     async updateMetadata(userId: string, bookId: string, input: { title?: string; author?: string | null }): Promise<CloudBookDto> {
       assertIds(userId, bookId);
@@ -183,7 +188,19 @@ export function createCloudBooksService(dependencies: { repository: CloudBooksRe
   };
 }
 
-async function owned(repository: CloudBooksRepository, userId: string, bookId: string) { assertIds(userId, bookId); const row = await repository.find(userId, bookId); if (!row) throw new CloudBookError("BOOK_NOT_FOUND"); return row; }
+async function owned(repository: CloudBooksRepository, userId: string, bookId: string) {
+  assertIds(userId, bookId);
+  let row: CloudBookRecord | null;
+  try { row = await repository.find(userId, bookId); }
+  catch (error) { throw mapRepositoryReadError(error); }
+  if (!row) throw new CloudBookError("BOOK_NOT_FOUND");
+  return row;
+}
+function mapRepositoryReadError(error: unknown): CloudBookError {
+  return error && typeof error === "object" && (error as { code?: unknown }).code === "BOOK_CONFLICT"
+    ? new CloudBookError("BOOK_CONFLICT")
+    : new CloudBookError("BOOK_NOT_FOUND");
+}
 function assertUserId(userId: string) { if (!isUuid(userId)) throw new CloudBookError("INVALID_BOOK_ID"); }
 function assertIds(userId: string, bookId: string) { assertUserId(userId); if (!isUuid(bookId)) throw new CloudBookError("INVALID_BOOK_ID"); }
 function normalizeMetadata(input: { title: string; author?: string | null; sourceLanguage?: string }) {

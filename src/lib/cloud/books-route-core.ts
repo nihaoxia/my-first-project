@@ -144,7 +144,7 @@ function mappedError(error: unknown): Response {
   if (code === "UNSUPPORTED_MEDIA_TYPE") return errorResponse(code, 415, "Only UTF-8 text/plain TXT files are supported.");
   if (["INVALID_OBJECT_PATH", "EMPTY_FILE", "INVALID_TEXT_FILE", "INVALID_BOOK_ID", "INVALID_BOOK_METADATA", "INVALID_CHAPTER_EDITS", "TOO_MANY_CHAPTERS"].includes(code)) return errorResponse(code, 400, "The request is invalid.");
   if (code === "BOOK_NOT_FOUND") return errorResponse(code, 404, "Book not found.");
-  if (code === "BOOK_UPDATE_FAILED" || code === "BOOK_DELETE_FAILED") return errorResponse(code, 409, "The book could not be changed.");
+  if (code === "BOOK_UPDATE_FAILED" || code === "BOOK_DELETE_FAILED" || code === "BOOK_CONFLICT") return errorResponse(code, 409, "The book could not be changed.");
   if (code === "CLEANUP_PERSIST_FAILED") return errorResponse(code, 500, "The cloud operation could not be safely started.");
   if (code === "CLOUD_NOT_CONFIGURED" || code === "CLOUD_CONFIG_INVALID" || code === "AUTH_MODE_FORBIDDEN") return errorResponse(code, 500, "Cloud service is not configured.");
   return errorResponse("INTERNAL_ERROR", 500, "The cloud operation failed.");
