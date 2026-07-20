@@ -50,10 +50,19 @@ test("builds parsed TXT upload drafts with inferred metadata and chapter preview
   assert.equal(draft.chapters[0]?.title, "第一章 雾起");
 });
 
-test("rejects EPUB drafts until parser and persistence support exists", () => {
+test("marks EPUB drafts as waiting for the local binary parser", () => {
   assert.deepEqual(buildUploadDraft({ name: "迷雾边境 - 林间客.epub", size: 2048 }), {
-    ok: false,
-    reason: "unsupported-format",
+    ok: true,
+    format: "EPUB",
+    metadata: {
+      title: "迷雾边境",
+      author: "林间客",
+      format: "EPUB",
+      originalFileName: "迷雾边境 - 林间客.epub",
+    },
+    parseStatus: "needs-epub-parser",
+    chapters: [],
+    warnings: [],
   });
 });
 

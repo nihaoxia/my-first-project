@@ -18,6 +18,7 @@ export type UploadFileValidationResult =
 export const uploadFilePolicy = {
   supportedFormats: [
     { label: "TXT", extension: ".txt" },
+    { label: "EPUB", extension: ".epub" },
   ] as const,
   maxSizeBytes: 2 * 1024 * 1024,
 };
@@ -55,7 +56,7 @@ export function validateUploadFileCandidate(file: UploadFileCandidate): UploadFi
     return { ok: false, reason: "unsupported-format" };
   }
 
-  if (format !== "TXT") {
+  if (format !== "TXT" && format !== "EPUB") {
     return { ok: false, reason: "unsupported-format" };
   }
 

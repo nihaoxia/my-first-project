@@ -2,7 +2,7 @@ import type { InferredBookMetadata } from "./book-metadata.ts";
 import { inferBookMetadataFromFileName } from "./book-metadata.ts";
 import type { UploadFileCandidate, UploadFileFormat, UploadFileValidationResult } from "./file-policy.ts";
 import { validateUploadFileCandidate } from "./file-policy.ts";
-import type { TxtChapterPreview, TxtChapterWarning } from "./txt-chapter-parser.ts";
+import type { ChapterPreview, ChapterWarning } from "./chapter-preview.ts";
 import { parseTxtChapters } from "./txt-chapter-parser.ts";
 
 export type UploadDraftInput = UploadFileCandidate & {
@@ -21,8 +21,8 @@ export type UploadDraftResult =
       format: UploadFileFormat;
       metadata: InferredBookMetadata;
       parseStatus: UploadDraftParseStatus;
-      chapters: TxtChapterPreview[];
-      warnings: TxtChapterWarning[];
+      chapters: ChapterPreview[];
+      warnings: ChapterWarning[];
     };
 
 export type ChapterPreviewCandidate =
@@ -31,7 +31,7 @@ export type ChapterPreviewCandidate =
   | {
       ok: true;
       parseStatus: UploadDraftParseStatus;
-      chapters: TxtChapterPreview[];
+      chapters: ChapterPreview[];
     };
 
 export function buildUploadDraft(input: UploadDraftInput): UploadDraftResult {

@@ -1,21 +1,13 @@
 import { MAX_CHAPTERS } from "../cloud/upload-limits.ts";
+import type {
+  ChapterParseResult,
+  ChapterPreview,
+  ChapterWarning,
+} from "./chapter-preview.ts";
 
-export type TxtChapterWarning = "leading-content" | "single-chapter" | "likely-toc" | "short-chapter";
-
-export type TxtChapterPreview = {
-  index: number;
-  title: string;
-  characterCount: number;
-  content: string;
-  contentPreview: string;
-  suggestedSkip: boolean;
-  warnings: TxtChapterWarning[];
-};
-
-export type TxtChapterParseResult = {
-  chapters: TxtChapterPreview[];
-  warnings: TxtChapterWarning[];
-};
+export type TxtChapterWarning = ChapterWarning;
+export type TxtChapterPreview = ChapterPreview;
+export type TxtChapterParseResult = ChapterParseResult;
 
 export type TxtChapterParseOptions = {
   shortChapterCharacters?: number;

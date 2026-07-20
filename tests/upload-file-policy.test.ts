@@ -47,6 +47,10 @@ test("accepts supported files inside the development upload limit", () => {
     ok: true,
     format: "TXT",
   });
+  assert.deepEqual(validateUploadFileCandidate({ name: "story.epub", size: 4096 }), {
+    ok: true,
+    format: "EPUB",
+  });
   assert.deepEqual(validateUploadFileCandidate({ name: "story.mobi", size: 4096 }), {
     ok: false,
     reason: "unsupported-format",
@@ -55,6 +59,13 @@ test("accepts supported files inside the development upload limit", () => {
     ok: false,
     reason: "unsupported-format",
   });
+});
+
+test("advertises only the locally implemented TXT and EPUB formats", () => {
+  assert.deepEqual(uploadFilePolicy.supportedFormats, [
+    { label: "TXT", extension: ".txt" },
+    { label: "EPUB", extension: ".epub" },
+  ]);
 });
 
 test("formats byte sizes for UI display", () => {

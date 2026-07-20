@@ -6,6 +6,7 @@ import {
   parseTxtChapters,
   txtChapterParsePolicy,
 } from "../src/lib/upload/txt-chapter-parser.ts";
+import type { ChapterPreview, ChapterWarning } from "../src/lib/upload/chapter-preview.ts";
 import { MAX_CHAPTERS } from "../src/lib/cloud/books-core.ts";
 
 test("detects common Chinese chapter headings", () => {
@@ -28,6 +29,10 @@ test("keeps full chapter content alongside the short preview", () => {
     "The first full paragraph should be preserved.\nThe second full paragraph should also stay available after import.",
   );
   assert.equal(result.chapters[0].contentPreview.includes("\n"), false);
+
+  const preview: ChapterPreview = result.chapters[0];
+  const warning: ChapterWarning = preview.warnings[0] ?? "short-chapter";
+  assert.equal(typeof warning, "string");
 });
 
 test("detects common English chapter headings", () => {
