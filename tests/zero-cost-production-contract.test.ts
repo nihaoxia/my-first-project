@@ -32,6 +32,11 @@ test("zero-cost runtime names every paid key it must reject", async () => {
     "TENCENTCLOUD_SECRET_KEY",
     "TENCENT_SMS_APP_ID",
     "TENCENT_SMS_SIGN_NAME",
+    "TRANSLATION_MCP_URL",
+    "TRANSLATION_MCP_SECRET",
+    "AI_BASE_URL",
+    "AI_API_KEY",
+    "AI_MODEL",
   ]) {
     assert.match(source, new RegExp(`\\b${key}\\b`), key);
   }
@@ -44,6 +49,8 @@ test("environment example documents EdgeOne without usable secrets", async () =>
   assert.match(source, /CLOUD_STORAGE_PROVIDER=edgeone/);
   assert.match(source, /EDGEONE_BLOB_STORE=/);
   assert.match(source, /EDGEONE_SESSION_SECRET=/);
+  assert.match(source, /EDGEONE_FREE_MODEL_CONFIRMED=false/);
+  assert.match(source, /MAKERS_MODELS_KEY=/);
   assert.doesNotMatch(
     source,
     /EDGEONE_SESSION_SECRET=(?!replace-with-|$)[^\r\n]{32,}/,

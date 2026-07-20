@@ -109,6 +109,27 @@ test("run claims a lease, validates MCP output, and commits translated chapter w
   assert.equal((memory.chapter as { providerName: string }).providerName, "openai-compatible");
 });
 
+test("run can resolve a quota-scoped provider for the current user", async () => {
+  const memory = repository();
+  const resolvedUsers: string[] = [];
+  const service = createCloudTranslationsService({
+    repository: memory.repo,
+    now: () => now,
+    uuid: () => "50000000-0000-4000-8000-000000000001",
+    provider: { name: "forbidden-static", async translateSegments() { throw new Error("static provider must not run"); } },
+    providerForUser(userId: string) {
+      resolvedUsers.push(userId);
+      return { name: "scoped", async translateSegments(input) {
+        return { providerName: "scoped", model: "free", usage: { inputTokens: 3, outputTokens: 4 },
+          translations: input.segments.map((segment) => ({ segmentId: segment.id, index: segment.index, translatedText: "ok" })) };
+      } };
+    },
+  });
+  await service.run(memory.task.userId, memory.task.translatedBookId, memory.task.id);
+  assert.deepEqual(resolvedUsers, [memory.task.userId]);
+  assert.equal((memory.chapter as { providerName: string }).providerName, "scoped");
+});
+
 test("an expired attempt cannot persist after a newer lease takes over", async () => {
   const memory = repository();
   let release!: () => void;
@@ -166,6 +187,19 @@ test("known provider failure codes are preserved but raw provider messages are d
   await assert.rejects(service.run(memory.task.userId, memory.task.translatedBookId, memory.task.id), (error: unknown) => error instanceof CloudTranslationError && error.code === "PROVIDER_RATE_LIMITED" && !error.message.includes("secret"));
   assert.equal(memory.task.errorCode, "PROVIDER_RATE_LIMITED");
   assert.equal(memory.task.errorMessage?.includes("secret"), false);
+});
+
+test("free-model and quota failures remain actionable without leaking causes", async () => {
+  for (const code of ["FREE_MODEL_UNAVAILABLE", "FREE_QUOTA_EXHAUSTED", "USAGE_LEDGER_UNAVAILABLE"] as const) {
+    const memory = repository();
+    const service = createCloudTranslationsService({ repository: memory.repo, now: () => now, uuid: () => crypto.randomUUID(),
+      provider: { name: "edgeone", async translateSegments() { throw Object.assign(new Error("raw provider secret"), { code }); } },
+    });
+    await assert.rejects(service.run(memory.task.userId, memory.task.translatedBookId, memory.task.id),
+      (error: unknown) => error instanceof CloudTranslationError && error.code === code && !error.message.includes("secret"));
+    assert.equal(memory.task.errorCode, code);
+    assert.equal(memory.task.errorMessage?.includes("secret"), false);
+  }
 });
 
 test("one run persists at most ten segments and a later run resumes the checkpoint", async () => {

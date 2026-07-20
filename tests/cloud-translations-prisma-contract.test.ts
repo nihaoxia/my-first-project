@@ -68,7 +68,7 @@ test("a stale checkpoint-reset retry cannot clear a later ordinary-failure check
 test("MCP provider resolution is lazy for cloud reads", () => {
   const getter = adapter.slice(adapter.indexOf("let singleton:"));
   assert.match(getter, /translateSegments: \(input\) => resolveProvider\(\)\.translateSegments\(input\)/);
-  assert.match(getter, /base\.create = async \(\.\.\.args\) => \{ resolveProvider\(\)/);
+  assert.match(getter, /base\.create = async \(\.\.\.args\) => \{\s*resolveProvider\(\)/);
   assert.doesNotMatch(getter.slice(getter.indexOf("getCloudTranslationsService"), getter.indexOf("const provider")), /resolveProvider\(/);
 });
 

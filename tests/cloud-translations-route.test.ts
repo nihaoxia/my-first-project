@@ -76,3 +76,21 @@ test("cloud translation creation maps unavailable web lookup to a stable conflic
     error: { code: "WEB_LOOKUP_UNAVAILABLE", message: "Web lookup is not available." },
   });
 });
+
+test("free model and quota gates return actionable stable responses", async () => {
+  const expected = {
+    FREE_MODEL_UNAVAILABLE: [503, "Free cloud translation is unavailable. Local translation or manual import remains available."],
+    FREE_QUOTA_EXHAUSTED: [429, "The free monthly translation quota is exhausted. Existing data remains available."],
+    USAGE_LEDGER_UNAVAILABLE: [503, "Translation usage cannot be verified, so new model calls are paused."],
+  } as const;
+  for (const [code, [status, message]] of Object.entries(expected)) {
+    const response = await handleCloudTranslationTaskAction(
+      new Request("http://app/api", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "run" }) }),
+      "30000000-0000-4000-8000-000000000001",
+      "20000000-0000-4000-8000-000000000001",
+      { getSession: async () => session, service: { ...service, async run() { throw Object.assign(new Error("raw secret"), { code }); } } },
+    );
+    assert.equal(response.status, status);
+    assert.deepEqual(await response.json(), { error: { code, message } });
+  }
+});

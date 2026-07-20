@@ -37,7 +37,7 @@ export type CloudTranslationRepository = {
   getReader(userId: string, translationId: string): Promise<CloudReaderDto | null>;
 };
 
-export type CloudTranslationErrorCode = "INVALID_TRANSLATION" | "BOOK_NOT_FOUND" | "TRANSLATION_NOT_FOUND" | "TASK_NOT_FOUND" | "TRANSLATION_CONFLICT" | "TASK_CONFLICT" | "TASK_BUSY" | "RETRY_LIMIT_REACHED" | "STALE_ATTEMPT" | "CHECKPOINT_INVALID" | "WEB_LOOKUP_UNAVAILABLE" | "TRANSLATION_FAILED" | "PROVIDER_RESPONSE_INVALID" | "PROVIDER_RATE_LIMITED" | "PROVIDER_TIMEOUT" | "MCP_UNAVAILABLE" | "MCP_NOT_CONFIGURED";
+export type CloudTranslationErrorCode = "INVALID_TRANSLATION" | "BOOK_NOT_FOUND" | "TRANSLATION_NOT_FOUND" | "TASK_NOT_FOUND" | "TRANSLATION_CONFLICT" | "TASK_CONFLICT" | "TASK_BUSY" | "RETRY_LIMIT_REACHED" | "STALE_ATTEMPT" | "CHECKPOINT_INVALID" | "WEB_LOOKUP_UNAVAILABLE" | "TRANSLATION_FAILED" | "PROVIDER_RESPONSE_INVALID" | "PROVIDER_RATE_LIMITED" | "PROVIDER_TIMEOUT" | "MCP_UNAVAILABLE" | "MCP_NOT_CONFIGURED" | "FREE_MODEL_UNAVAILABLE" | "FREE_QUOTA_EXHAUSTED" | "USAGE_LEDGER_UNAVAILABLE";
 export class CloudTranslationError extends Error { readonly code: CloudTranslationErrorCode; constructor(code: CloudTranslationErrorCode, message: string = code) { super(message); this.code = code; this.name = "CloudTranslationError"; } }
 
 const TARGET_LANGUAGES = new Set<CloudBookLanguage>(["CHINESE", "ENGLISH", "JAPANESE", "KOREAN", "RUSSIAN", "GERMAN", "SPANISH", "FRENCH"]);
@@ -49,7 +49,15 @@ export const MAX_TRANSLATED_SEGMENT_UTF8_BYTES = 32 * 1024;
 export const MAX_TRANSLATED_CHAPTER_UTF8_BYTES = 5 * 1024 * 1024;
 const DEFAULT_MAX_RETRIES = 3;
 
-export function createCloudTranslationsService(input: { repository: CloudTranslationRepository; provider: TranslationProvider; now?: () => Date; uuid?: () => string; leaseMs?: number; maxRetries?: number }) {
+export function createCloudTranslationsService(input: {
+  repository: CloudTranslationRepository;
+  provider: TranslationProvider;
+  providerForUser?: (userId: string) => TranslationProvider;
+  now?: () => Date;
+  uuid?: () => string;
+  leaseMs?: number;
+  maxRetries?: number;
+}) {
   const now = input.now ?? (() => new Date()); const uuid = input.uuid ?? (() => crypto.randomUUID());
   const leaseMs = input.leaseMs ?? TRANSLATION_LEASE_MS; const maxRetries = input.maxRetries ?? DEFAULT_MAX_RETRIES;
   return {
@@ -80,7 +88,8 @@ export function createCloudTranslationsService(input: { repository: CloudTransla
         validateCheckpoint(executingTask, allSegments);
         if (!allSegments.length || executingTask.nextSegmentIndex >= allSegments.length) throw new CloudTranslationError("PROVIDER_RESPONSE_INVALID");
         const batch = allSegments.slice(executingTask.nextSegmentIndex, executingTask.nextSegmentIndex + 10);
-        const result = await translateBatch(input.provider, executingTask, batch, signal);
+        const provider = input.providerForUser?.(userId) ?? input.provider;
+        const result = await translateBatch(provider, executingTask, batch, signal);
         const model = result.model ?? "unknown";
         if (executingTask.checkpointProvider && (executingTask.checkpointProvider !== result.providerName || executingTask.checkpointModel !== model)) throw new CloudTranslationError("PROVIDER_RESPONSE_INVALID");
         const newSegments = result.translations.map((part) => ({ segmentId: part.segmentId, index: part.index, translatedText: part.translatedText.trim() }));
@@ -111,7 +120,29 @@ function validateCheckpoint(task: CloudTranslationTaskRecord, source: Translatio
 async function translateBatch(provider: TranslationProvider, task: CloudTranslationTaskRecord, segments: TranslationSegment[], signal?: AbortSignal): Promise<TranslationProviderResult> { const result = await provider.translateSegments({ signal, sourceLanguage: LANGUAGE_LABEL[task.sourceLanguage], targetLanguage: LANGUAGE_LABEL[task.targetLanguage], style: "自然", webLookupEnabled: task.webSearchTerms, glossaryTerms: [], segments }); validateResult(result, segments); return result; }
 function validateResult(result: TranslationProviderResult, source: TranslationSegment[]) { if (!result || typeof result.providerName !== "string" || !result.providerName.trim() || result.providerName.length > 200 || (result.model !== undefined && (typeof result.model !== "string" || !result.model.trim() || result.model.length > 200)) || result.translations.length !== source.length) throw new CloudTranslationError("PROVIDER_RESPONSE_INVALID"); const expected = new Map(source.map((segment) => [segment.id, segment.index])); const seen = new Set<string>(); for (const part of result.translations) { if (seen.has(part.segmentId) || expected.get(part.segmentId) !== part.index || !validCheckpointText(part.translatedText)) throw new CloudTranslationError("PROVIDER_RESPONSE_INVALID"); seen.add(part.segmentId); } if (result.usage && (!Number.isSafeInteger(result.usage.inputTokens) || result.usage.inputTokens < 0 || !Number.isSafeInteger(result.usage.outputTokens) || result.usage.outputTokens < 0)) throw new CloudTranslationError("PROVIDER_RESPONSE_INVALID"); }
 function parseCreate(raw: unknown) { if (!isRecord(raw) || Object.keys(raw).some((key) => !["originalBookId", "title", "targetLanguage", "chapterIds", "webSearchTerms"].includes(key))) throw new CloudTranslationError("INVALID_TRANSLATION"); if (typeof raw.originalBookId !== "string" || !isUuid(raw.originalBookId) || typeof raw.targetLanguage !== "string" || !TARGET_LANGUAGES.has(raw.targetLanguage as CloudBookLanguage)) throw new CloudTranslationError("INVALID_TRANSLATION"); if (raw.title !== undefined && (typeof raw.title !== "string" || !raw.title.trim() || raw.title.trim().length > 200)) throw new CloudTranslationError("INVALID_TRANSLATION"); if (raw.webSearchTerms !== undefined && typeof raw.webSearchTerms !== "boolean") throw new CloudTranslationError("INVALID_TRANSLATION"); if (raw.chapterIds !== undefined && (!Array.isArray(raw.chapterIds) || raw.chapterIds.length < 1 || raw.chapterIds.length > 2_000 || raw.chapterIds.some((id) => typeof id !== "string" || !isUuid(id)) || new Set(raw.chapterIds).size !== raw.chapterIds.length)) throw new CloudTranslationError("INVALID_TRANSLATION"); return { originalBookId: raw.originalBookId, targetLanguage: raw.targetLanguage as CloudBookLanguage, title: typeof raw.title === "string" ? raw.title.trim() : undefined, webSearchTerms: raw.webSearchTerms === true, chapterIds: raw.chapterIds as string[] | undefined }; }
-function sanitizeProviderError(error: unknown): { errorCode: CloudTranslationErrorCode; errorMessage: string } { const reported = isRecord(error) && typeof error.code === "string" ? error.code : ""; const allowed = new Set<CloudTranslationErrorCode>(["CHECKPOINT_INVALID", "PROVIDER_RESPONSE_INVALID", "PROVIDER_RATE_LIMITED", "PROVIDER_TIMEOUT", "MCP_UNAVAILABLE", "MCP_NOT_CONFIGURED"]); const errorCode = allowed.has(reported as CloudTranslationErrorCode) ? reported as CloudTranslationErrorCode : "TRANSLATION_FAILED"; const messages: Partial<Record<CloudTranslationErrorCode, string>> = { CHECKPOINT_INVALID: "The stored translation checkpoint is invalid and must be reset.", PROVIDER_RESPONSE_INVALID: "The translation provider returned an invalid response.", PROVIDER_RATE_LIMITED: "The translation provider is rate limited.", PROVIDER_TIMEOUT: "The translation provider timed out.", MCP_UNAVAILABLE: "The translation MCP service is unavailable.", MCP_NOT_CONFIGURED: "The translation MCP service is not configured." }; return { errorCode, errorMessage: messages[errorCode] ?? "The translation provider failed." }; }
+function sanitizeProviderError(error: unknown): { errorCode: CloudTranslationErrorCode; errorMessage: string } {
+  const reported = isRecord(error) && typeof error.code === "string" ? error.code : "";
+  const allowed = new Set<CloudTranslationErrorCode>([
+    "CHECKPOINT_INVALID", "PROVIDER_RESPONSE_INVALID", "PROVIDER_RATE_LIMITED",
+    "PROVIDER_TIMEOUT", "MCP_UNAVAILABLE", "MCP_NOT_CONFIGURED",
+    "FREE_MODEL_UNAVAILABLE", "FREE_QUOTA_EXHAUSTED", "USAGE_LEDGER_UNAVAILABLE",
+  ]);
+  const errorCode = allowed.has(reported as CloudTranslationErrorCode)
+    ? reported as CloudTranslationErrorCode
+    : "TRANSLATION_FAILED";
+  const messages: Partial<Record<CloudTranslationErrorCode, string>> = {
+    CHECKPOINT_INVALID: "The stored translation checkpoint is invalid and must be reset.",
+    PROVIDER_RESPONSE_INVALID: "The translation provider returned an invalid response.",
+    PROVIDER_RATE_LIMITED: "The translation provider is rate limited.",
+    PROVIDER_TIMEOUT: "The translation provider timed out.",
+    MCP_UNAVAILABLE: "The translation MCP service is unavailable.",
+    MCP_NOT_CONFIGURED: "The translation MCP service is not configured.",
+    FREE_MODEL_UNAVAILABLE: "Free cloud translation is unavailable. Local translation or manual import remains available.",
+    FREE_QUOTA_EXHAUSTED: "The free monthly translation quota is exhausted. Existing data remains available.",
+    USAGE_LEDGER_UNAVAILABLE: "Translation usage cannot be verified, so new model calls are paused.",
+  };
+  return { errorCode, errorMessage: messages[errorCode] ?? "The translation provider failed." };
+}
 function toTaskDto(task: CloudTranslationTaskRecord, at: Date): CloudTranslationTaskDto { const total = splitChapterIntoTranslationSegments({ chapterId: task.chapterId, chapterTitle: task.chapterTitle, text: task.chapterContent }).length; const isLeaseExpired = task.status === "TRANSLATING" && !!task.attemptExpiresAt && task.attemptExpiresAt <= at; const batchAvailable = !task.batchExecutionId || !task.batchExecutionExpiresAt || task.batchExecutionExpiresAt <= at; return { id: task.id, translationId: task.translatedBookId, chapterId: task.chapterId, chapterIndex: task.chapterIndex, chapterTitle: task.chapterTitle, status: task.status, retryCount: task.retryCount, estimatedCostCents: task.estimatedCostCents, progressPercent: total ? Math.floor((task.nextSegmentIndex / total) * 100) : 0, canContinue: (task.status === "PENDING" || task.status === "TRANSLATING") && batchAvailable, isLeaseExpired, ...(task.status === "FAILED" ? { error: { code: task.errorCode || "TRANSLATION_FAILED", message: task.errorMessage || "Translation failed." } } : {}) }; }
 async function requireTask(repository: CloudTranslationRepository, userId: string, translationId: string, taskId: string) { const tasks = await repository.listTasks(userId, translationId); if (!tasks) throw new CloudTranslationError("TRANSLATION_NOT_FOUND"); const task = tasks.find((item) => item.id === taskId); if (!task) throw new CloudTranslationError("TASK_NOT_FOUND"); return task; }
 function validCheckpointText(value: unknown): value is string { return typeof value === "string" && !!value.trim() && utf8Bytes(value) <= MAX_TRANSLATED_SEGMENT_UTF8_BYTES; }

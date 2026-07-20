@@ -71,6 +71,9 @@ function mapped(cause: unknown) {
   if (code === "CHECKPOINT_INVALID") return error(code, 409, "The stored translation checkpoint is invalid. Retry to reset it.");
   if (["TRANSLATION_CONFLICT", "TASK_CONFLICT", "RETRY_LIMIT_REACHED", "STALE_ATTEMPT"].includes(code)) return error(code, 409, "The translation state changed. Refresh and try again.");
   if (code === "PROVIDER_RATE_LIMITED") return error(code, 429, "The translation provider is busy.");
+  if (code === "FREE_MODEL_UNAVAILABLE") return error(code, 503, "Free cloud translation is unavailable. Local translation or manual import remains available.");
+  if (code === "FREE_QUOTA_EXHAUSTED") return error(code, 429, "The free monthly translation quota is exhausted. Existing data remains available.");
+  if (code === "USAGE_LEDGER_UNAVAILABLE") return error(code, 503, "Translation usage cannot be verified, so new model calls are paused.");
   if (["TRANSLATION_FAILED", "PROVIDER_RESPONSE_INVALID", "PROVIDER_TIMEOUT", "MCP_UNAVAILABLE", "MCP_NOT_CONFIGURED"].includes(code)) return error(code, 502, "The translation provider failed.");
   if (code === "INSUFFICIENT_BALANCE") return error(code, 409, "Insufficient account balance.");
   if (["CLOUD_NOT_CONFIGURED", "CLOUD_CONFIG_INVALID", "AUTH_MODE_FORBIDDEN"].includes(code)) return error(code, 500, "Cloud service is not configured.");

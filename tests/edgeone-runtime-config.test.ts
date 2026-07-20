@@ -10,6 +10,7 @@ type Resolver = (environment: Record<string, string | undefined>) =>
         storageProvider: "edgeone";
         blobStore: string;
         sessionSecret: string;
+        freeModelConfirmed: boolean;
       };
     }
   | {
@@ -55,6 +56,7 @@ test("zero-cost production accepts only EdgeOne auth, data and Blob", () => {
       storageProvider: "edgeone",
       blobStore: "stray-pages-production",
       sessionSecret: "x".repeat(64),
+      freeModelConfirmed: false,
     },
   });
 });
@@ -70,6 +72,11 @@ test("zero-cost production rejects every populated paid-provider key", () => {
     "TENCENTCLOUD_SECRET_KEY",
     "TENCENT_SMS_APP_ID",
     "TENCENT_SMS_SIGN_NAME",
+    "TRANSLATION_MCP_URL",
+    "TRANSLATION_MCP_SECRET",
+    "AI_BASE_URL",
+    "AI_API_KEY",
+    "AI_MODEL",
   ];
 
   for (const key of paidKeys) {
@@ -118,4 +125,18 @@ test("empty legacy keys do not make an otherwise free configuration paid", () =>
     resolver()({ ...validEnvironment, COS_BUCKET: "   ", DATABASE_URL: "" }).ok,
     true,
   );
+});
+
+test("free model calls require an explicit boolean confirmation", () => {
+  const confirmed = resolver()({ ...validEnvironment, EDGEONE_FREE_MODEL_CONFIRMED: "true" });
+  assert.equal(confirmed.ok, true);
+  if (confirmed.ok) assert.equal(confirmed.config.freeModelConfirmed, true);
+
+  const disabled = resolver()({ ...validEnvironment, EDGEONE_FREE_MODEL_CONFIRMED: "false" });
+  assert.equal(disabled.ok, true);
+  if (disabled.ok) assert.equal(disabled.config.freeModelConfirmed, false);
+
+  const invalid = resolver()({ ...validEnvironment, EDGEONE_FREE_MODEL_CONFIRMED: "yes" });
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.deepEqual(invalid.error.invalidKeys, ["EDGEONE_FREE_MODEL_CONFIRMED"]);
 });

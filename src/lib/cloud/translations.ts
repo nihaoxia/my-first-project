@@ -2,10 +2,17 @@ import "server-only";
 
 import { Prisma, type PrismaClient, type Prisma as PrismaTypes } from "@prisma/client";
 import { getDb } from "../db";
+import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
+import { createEdgeOneQuotaService } from "../edgeone/quota";
+import { getEdgeOneRuntimeConfig } from "../edgeone/runtime-config";
 import { createMcpTranslationProvider, parseMcpTranslationClientConfig } from "../translation/mcp-translation-provider";
 import type { TranslationProvider } from "../translation/translation-provider";
 import { withSerializableReconciliation, withSerializableRetry } from "./serializable-retry";
 import { createCloudTranslationsService, estimateTranslationCostCents, MAX_CHECKPOINT_SEGMENTS, type CloudBookLanguage, type CloudTranslationRepository, type CloudTranslationSummary, type CloudTranslationTaskRecord, type PersistedTranslationSegment } from "./translations-core";
+import { createEdgeOneBooksRepository } from "./edgeone-books-repository";
+import { createEdgeOneModelsTranslationProvider } from "./edgeone-models-translation-provider";
+import { createFreeQuotaTranslationProvider, EDGEONE_MODEL_QUOTA_LEDGER_ID } from "./edgeone-translation-quota-core";
+import { createEdgeOneTranslationsRepository } from "./edgeone-translations-repository";
 
 type Db = PrismaClient | PrismaTypes.TransactionClient;
 const TX_OPTIONS = { maxWait: 5_000, timeout: 180_000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable } as const;
@@ -140,4 +147,76 @@ async function refreshTranslation(tx: PrismaTypes.TransactionClient, userId: str
 let singleton: ReturnType<typeof createCloudTranslationsService> | undefined;
 let providerSingleton: TranslationProvider | undefined;
 function resolveProvider() { if (providerSingleton) return providerSingleton; const config = parseMcpTranslationClientConfig(process.env); if (!config.ok) throw Object.assign(new Error("translation MCP not configured"), { code: config.code }); return (providerSingleton = createMcpTranslationProvider(config.value)); }
-export function getCloudTranslationsService() { if (singleton) return singleton; const provider: TranslationProvider = { name: "lazy-mcp", translateSegments: (input) => resolveProvider().translateSegments(input) }; const base = createCloudTranslationsService({ repository: createPrismaCloudTranslationRepository(), provider }); const create = base.create; base.create = async (...args) => { resolveProvider(); return create(...args); }; return (singleton = base); }
+export function getCloudTranslationsService() {
+  if (singleton) return singleton;
+  if (process.env.CLOUD_DATA_PROVIDER === "edgeone") {
+    const config = getEdgeOneRuntimeConfig();
+    const blob = getAuthoritativeBlobStore(config.blobStore);
+    const now = () => new Date();
+    const uuid = () => crypto.randomUUID();
+    const books = createEdgeOneBooksRepository({ blob, now, uuid });
+    const repository = createEdgeOneTranslationsRepository({
+      blob,
+      now,
+      uuid,
+      async findBook(userId, bookId) {
+        const book = await books.find(userId, bookId);
+        if (!book?.chapters || book.chapters.some((chapter) => !chapter.id)) return null;
+        return {
+          id: book.id,
+          title: book.title,
+          sourceLanguage: asCloudBookLanguage(book.sourceLanguage),
+          chapters: book.chapters.map((chapter) => ({
+            id: chapter.id!,
+            index: chapter.index,
+            title: chapter.title,
+            content: chapter.content,
+            wordCount: chapter.wordCount,
+            status: chapter.status,
+            isSkipped: chapter.isSkipped,
+          })),
+        };
+      },
+    });
+    const modelsKey = process.env.MAKERS_MODELS_KEY?.trim();
+    const models = createEdgeOneModelsTranslationProvider({ apiKey: modelsKey });
+    const quota = createEdgeOneQuotaService(blob);
+    singleton = createCloudTranslationsService({
+      repository,
+      provider: models,
+      providerForUser: () => createFreeQuotaTranslationProvider({
+        provider: models,
+        quota,
+        userId: EDGEONE_MODEL_QUOTA_LEDGER_ID,
+        freeModelConfirmed: config.freeModelConfirmed && Boolean(modelsKey),
+        now,
+        uuid,
+      }),
+      now,
+      uuid,
+    });
+    return singleton;
+  }
+  const provider: TranslationProvider = {
+    name: "lazy-mcp",
+    translateSegments: (input) => resolveProvider().translateSegments(input),
+  };
+  const base = createCloudTranslationsService({
+    repository: createPrismaCloudTranslationRepository(),
+    provider,
+  });
+  const create = base.create;
+  base.create = async (...args) => {
+    resolveProvider();
+    return create(...args);
+  };
+  return (singleton = base);
+}
+
+function asCloudBookLanguage(value: string): CloudBookLanguage {
+  const allowed = new Set<CloudBookLanguage>([
+    "CHINESE", "ENGLISH", "JAPANESE", "KOREAN", "RUSSIAN",
+    "GERMAN", "SPANISH", "FRENCH", "UNKNOWN",
+  ]);
+  return allowed.has(value as CloudBookLanguage) ? value as CloudBookLanguage : "UNKNOWN";
+}

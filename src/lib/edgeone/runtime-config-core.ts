@@ -4,6 +4,7 @@ export type EdgeOneRuntimeConfig = {
   storageProvider: "edgeone";
   blobStore: string;
   sessionSecret: string;
+  freeModelConfirmed: boolean;
 };
 
 export type EdgeOneRuntimeConfigError = {
@@ -26,6 +27,11 @@ export const FORBIDDEN_ZERO_COST_PRODUCTION_KEYS = [
   "TENCENTCLOUD_SECRET_KEY",
   "TENCENT_SMS_APP_ID",
   "TENCENT_SMS_SIGN_NAME",
+  "TRANSLATION_MCP_URL",
+  "TRANSLATION_MCP_SECRET",
+  "AI_BASE_URL",
+  "AI_API_KEY",
+  "AI_MODEL",
 ] as const;
 
 const REQUIRED_KEYS = [
@@ -68,6 +74,7 @@ export function resolveEdgeOneRuntimeConfig(
   }
 
   const invalidKeys: string[] = [];
+  const freeModelConfirmation = normalize(environment.EDGEONE_FREE_MODEL_CONFIRMED);
   if (values.AUTH_MODE !== "edgeone") invalidKeys.push("AUTH_MODE");
   if (values.CLOUD_DATA_PROVIDER !== "edgeone") {
     invalidKeys.push("CLOUD_DATA_PROVIDER");
@@ -84,6 +91,9 @@ export function resolveEdgeOneRuntimeConfig(
   ) {
     invalidKeys.push("EDGEONE_SESSION_SECRET");
   }
+  if (freeModelConfirmation !== undefined && !["true", "false"].includes(freeModelConfirmation)) {
+    invalidKeys.push("EDGEONE_FREE_MODEL_CONFIRMED");
+  }
   if (invalidKeys.length > 0) {
     return fail("ZERO_COST_CONFIG_INVALID", invalidKeys);
   }
@@ -96,6 +106,7 @@ export function resolveEdgeOneRuntimeConfig(
       storageProvider: "edgeone",
       blobStore: values.EDGEONE_BLOB_STORE!,
       sessionSecret: values.EDGEONE_SESSION_SECRET!,
+      freeModelConfirmed: freeModelConfirmation === "true",
     },
   };
 }
