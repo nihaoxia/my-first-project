@@ -40,10 +40,13 @@ import {
   writeScopedLocalStorage,
 } from "@/lib/storage/safe-local-storage";
 import { createReadingSaveQueue } from "@/lib/cloud/reading-save-queue";
+import { TextDownloadButton } from "@/components/export/text-download-button";
+import type { TextExportResult } from "@/lib/export/translation-export";
 
 type ReaderWorkspaceProps = {
   title: string;
   readerView: ReaderView;
+  download?: TextExportResult;
   translationId?: string;
   persistence?: "local" | "cloud";
   cloudSource?: { originalBookId: string; translatedBookId: string };
@@ -135,7 +138,7 @@ const compactActionButtonClasses =
   "inline-flex h-9 items-center justify-center rounded-md bg-[var(--surface-2)] px-3 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--reader-highlight)] disabled:opacity-45";
 const localReaderSelectionsChangedEvent = "stray-pages.reader-selections-changed";
 
-export function ReaderWorkspace({ title, readerView, translationId, persistence = "local", cloudSource, initialParagraphIndex = 0, initialReadingVersion = 0 }: ReaderWorkspaceProps) {
+export function ReaderWorkspace({ title, readerView, download, translationId, persistence = "local", cloudSource, initialParagraphIndex = 0, initialReadingVersion = 0 }: ReaderWorkspaceProps) {
   const articleRef = useRef<HTMLElement>(null);
   const lookupCardRef = useRef<HTMLDivElement>(null);
   const [showToc, setShowToc] = useState(true);
@@ -488,6 +491,14 @@ export function ReaderWorkspace({ title, readerView, translationId, persistence 
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {download ? (
+                <TextDownloadButton
+                  content={download.content}
+                  fileName={download.fileName}
+                  kind="text"
+                  label="下载完整译本 TXT"
+                />
+              ) : null}
               {!showToc ? (
                 <Button variant="secondary" onClick={() => setShowToc(true)}>
                   <PanelLeft aria-hidden="true" size={16} />

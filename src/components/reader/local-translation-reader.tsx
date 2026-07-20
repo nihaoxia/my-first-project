@@ -11,6 +11,7 @@ import {
   parseStoredLocalTranslationsResult,
 } from "@/lib/library/local-translation-storage";
 import { routes } from "@/lib/routes";
+import { buildTranslatedBookTxtExport } from "@/lib/export/translation-export";
 import { ReaderWorkspace } from "./reader-workspace";
 import {
   getLocalStorageFailureMessage,
@@ -85,10 +86,23 @@ export function LocalTranslationReader({
     );
   }
 
+  const readableChapters = getReadableStoredLocalTranslationChapters(state.translation);
+  const download = buildTranslatedBookTxtExport({
+    title: state.translation.title,
+    originalTitle: state.translation.originalTitle,
+    targetLanguage: state.translation.targetLanguage,
+    chapters: readableChapters.map((chapter) => ({
+      id: chapter.id,
+      title: chapter.title,
+      paragraphs: chapter.translatedParagraphs,
+    })),
+  });
+
   return (
     <ReaderWorkspace
       title={state.translation.title}
       readerView={state.readerView}
+      download={download}
       translationId={state.translation.id}
     />
   );

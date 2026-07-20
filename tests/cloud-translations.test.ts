@@ -4,12 +4,19 @@ import test from "node:test";
 import {
   CloudTranslationError,
   createCloudTranslationsService,
+  getCloudBookLanguageLabel,
   type CloudTranslationRepository,
   type CloudTranslationTaskRecord,
 } from "../src/lib/cloud/translations-core.ts";
 import { splitChapterIntoTranslationSegments } from "../src/lib/translation/translation-segments.ts";
 
 const now = new Date("2026-07-11T00:00:00.000Z");
+
+test("returns stable user-facing cloud language labels", () => {
+  assert.equal(getCloudBookLanguageLabel("CHINESE"), "中文");
+  assert.equal(getCloudBookLanguageLabel("FRENCH"), "法语");
+  assert.equal(getCloudBookLanguageLabel("UNKNOWN"), "未知");
+});
 
 function fixture(overrides: Partial<CloudTranslationTaskRecord> = {}): CloudTranslationTaskRecord {
   return {

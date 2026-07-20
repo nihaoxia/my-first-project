@@ -110,10 +110,12 @@ function slugifyFileName(value: string) {
     (character) => ` ${pinyinMap[character] ?? ""} `,
   );
 
-  return transliterated
+  const slug = transliterated
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+  return slug || "stray-pages-export";
 }
 
 const pinyinMap: Record<string, string> = {

@@ -42,6 +42,10 @@ export class CloudTranslationError extends Error { readonly code: CloudTranslati
 
 const TARGET_LANGUAGES = new Set<CloudBookLanguage>(["CHINESE", "ENGLISH", "JAPANESE", "KOREAN", "RUSSIAN", "GERMAN", "SPANISH", "FRENCH"]);
 const LANGUAGE_LABEL: Record<CloudBookLanguage, string> = { CHINESE: "中文", ENGLISH: "英文", JAPANESE: "日文", KOREAN: "韩文", RUSSIAN: "俄语", GERMAN: "德语", SPANISH: "西班牙语", FRENCH: "法语", UNKNOWN: "未知" };
+
+export function getCloudBookLanguageLabel(language: CloudBookLanguage) {
+  return LANGUAGE_LABEL[language];
+}
 export const TRANSLATION_LEASE_MS = 10 * 60_000;
 export const BATCH_EXECUTION_LEASE_MS = 7 * 60_000;
 export const MAX_CHECKPOINT_SEGMENTS = 2_000;

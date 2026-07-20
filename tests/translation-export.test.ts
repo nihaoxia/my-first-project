@@ -50,3 +50,14 @@ test("builds an EPUB export draft without producing a binary package", () => {
   );
   assert.match(draft.note, /尚未生成真实 EPUB 文件/);
 });
+
+test("uses a safe non-empty fallback for an unmapped Unicode title", () => {
+  const exported = buildTranslatedBookTxtExport({
+    title: "星河",
+    originalTitle: "星河",
+    targetLanguage: "英文",
+    chapters: [{ id: "chapter-1", title: "第一章", paragraphs: ["Text"] }],
+  });
+
+  assert.equal(exported.fileName, "stray-pages-export.txt");
+});
