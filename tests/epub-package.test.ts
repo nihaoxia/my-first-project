@@ -50,6 +50,14 @@ test("parses metadata and keeps the OPF spine as authoritative order", () => {
   assert.equal(parsed.navigation?.path, "OPS/nav.xhtml");
 });
 
+test("reads manifest items only from the manifest element", () => {
+  const parsed = parsePackageDocument(
+    xml('<package><metadata><item id="chapter" href="decoy.xhtml" media-type="application/xhtml+xml"/></metadata><manifest><item id="chapter" href="real.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="chapter"/></spine></package>'),
+    "OPS/package.opf",
+  );
+  assert.equal(parsed.spine[0].path, "OPS/real.xhtml");
+});
+
 test("rejects duplicate manifest ids and unknown spine references", () => {
   const templates = [
     '<manifest><item id="x" href="a.xhtml" media-type="application/xhtml+xml"/><item id="x" href="b.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="x"/></spine>',

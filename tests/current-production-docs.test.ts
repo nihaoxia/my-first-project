@@ -13,10 +13,11 @@ test("documents EdgeOne as the current zero-cost production architecture", () =>
   assert.doesNotMatch(readme, /生产使用仍需部署 Supabase migration、配置短信供应商/);
 });
 
-test("records real browser text downloads without claiming EPUB support", () => {
+test("records real browser text downloads and distinguishes EPUB import from export", () => {
   const roadmap = readFileSync("docs/ROADMAP.md", "utf8");
 
   assert.match(roadmap, /真实浏览器文本下载[^\n]*已完成/);
   assert.doesNotMatch(roadmap, /真实浏览器文件下载尚未接入/);
+  assert.match(roadmap, /EPUB ZIP\/XML\/OPF\/spine\/nav\/NCX 安全解析[^\n]*已完成/);
   assert.match(roadmap, /真实 EPUB[^\n]*尚未/);
 });

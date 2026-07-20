@@ -238,6 +238,10 @@ export function resolveEpubPath(basePath: string, href: string): string {
     throw new EpubParseError("EPUB_UNSAFE_ARCHIVE");
   }
   const withoutFragment = href.split("#", 1)[0] ?? "";
+  if (!withoutFragment && href.startsWith("#")) {
+    validateEntryPath(basePath, false);
+    return basePath;
+  }
   let decoded: string;
   try {
     decoded = decodeURIComponent(withoutFragment);

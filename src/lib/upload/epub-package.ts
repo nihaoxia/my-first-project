@@ -43,7 +43,9 @@ export function parsePackageDocument(document: EpubXmlDocument, packagePath: str
   };
 
   const manifest = new Map<string, ManifestItem>();
-  for (const element of elementsByLocalName(document, "item")) {
+  const manifestElement = elementsByLocalName(document, "manifest")[0];
+  if (!manifestElement) throw new EpubParseError("EPUB_INVALID_ARCHIVE");
+  for (const element of childElementsByLocalName(manifestElement, "item")) {
     const id = element.getAttribute("id")?.trim() ?? "";
     const href = element.getAttribute("href")?.trim() ?? "";
     const mediaType = element.getAttribute("media-type")?.trim().toLowerCase() ?? "";
@@ -62,7 +64,7 @@ export function parsePackageDocument(document: EpubXmlDocument, packagePath: str
   if (!spineElement) throw new EpubParseError("EPUB_INVALID_ARCHIVE");
   const spine: EpubSpineItem[] = [];
   const seen = new Set<string>();
-  for (const itemref of elementsByLocalName(spineElement, "itemref")) {
+  for (const itemref of childElementsByLocalName(spineElement, "itemref")) {
     const idref = itemref.getAttribute("idref")?.trim() ?? "";
     const item = manifest.get(idref);
     if (!idref || !item || seen.has(idref)) throw new EpubParseError("EPUB_INVALID_ARCHIVE");
@@ -125,6 +127,17 @@ function addNavigationTitle(
 function firstText(root: EpubXmlElement | undefined, localName: string) {
   const value = normalizedElementText(root ? elementsByLocalName(root, localName)[0] : undefined);
   return value || null;
+}
+
+function childElementsByLocalName(root: EpubXmlElement, localName: string) {
+  const matches: EpubXmlElement[] = [];
+  for (let index = 0; index < root.childNodes.length; index += 1) {
+    const child = root.childNodes.item(index);
+    if (child?.nodeType === 1 && (child as EpubXmlElement).localName === localName) {
+      matches.push(child as EpubXmlElement);
+    }
+  }
+  return matches;
 }
 
 function assertReflowable(document: EpubXmlDocument) {

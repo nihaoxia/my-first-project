@@ -926,3 +926,18 @@
 - `pnpm build` 完成生产编译、TypeScript 检查和 18 个静态页面生成；worktree 环境仍显示父目录与当前目录多 lockfile 的根目录推断警告，但没有构建错误。
 - `pnpm verify:zero-cost` 输出 `zero-cost production contract: ok`，没有部署、Blob 写入或模型调用。
 - `git diff --check` 无输出；凭据模式扫描没有命中 AKID 或私钥，`EDGEONE_SESSION_SECRET` 只出现在环境变量模板、运行手册、验证脚本、计划和测试中的键名或占位内容。
+
+### 安全本地 EPUB 导入
+
+- 新增精确锁定的免费开源依赖 `fflate@0.8.3` 与 `@xmldom/xmldom@0.9.10`；两者均为 MIT，运行时依赖数均为 0。
+- 上传策略现在真实支持 2 MiB 以内 TXT 与 EPUB；MOBI/PDF 继续明确拒绝。EPUB 使用 `arrayBuffer()` 在浏览器本地读取，原文件、图片、封面、字体、CSS、音视频和排版均不上传、不保存。
+- 新增 ZIP 安全层：验证首个未压缩 `mimetype`、EOCD、中央目录和 local header；拒绝路径穿越、重复路径、ZIP64、多卷、加密 entry、未知压缩、危险压缩比和声明/实际展开超限，并只选择性解压控制文件和文字文档。
+- 新增安全 XML、container、OPF、manifest、spine、EPUB 3 nav、EPUB 2 NCX 与 XHTML 纯文本解析；拒绝 DTD/ENTITY、多 rendition、固定布局和 DRM，忽略脚本、样式、SVG、MathML、嵌入与媒体子树。
+- 合法 EPUB 按 spine 顺序映射到现有章节预览、章节编辑、跳过/恢复、本地书架、创建译本和阅读流程；标题依次使用 nav/NCX、正文 heading、文档 title 和编号回退。空白 spine 文档跳过，无任何可读正文时整体失败。
+- 本地草稿存储守卫允许完整 parsed TXT/EPUB，同时要求格式一致、章节 index 从 1 连续、标题和字段结构有效；旧的待解析 EPUB 或损坏 localStorage 继续 fail closed。
+- TDD 红灯证据：依赖合同先因包未声明失败；共享章节策略先因 EPUB 被拒绝失败；归档/XML/package/text/parser 测试先因生产模块不存在失败；存储连续 index 测试先观察到损坏草稿被接受；产品能力测试先观察到首页仍描述 EPUB 未实现。
+- 聚焦绿灯证据：归档、XML/package/text、EPUB 2/3 编排、上传/存储/UI 和既有 TXT 回归共 55 项通过；typecheck、lint 与无网络/无云 SDK/无文件系统写入扫描通过。
+- 提交前本地代码审查发现并修复两个边界：纯 `#fragment` 链接现在安全解析为当前文档；OPF 只读取 `<manifest>` 的直接 `<item>` 与 `<spine>` 的直接 `<itemref>`，不会被 metadata 内的同名伪元素污染。两项都先补失败测试再修复。
+- 最终完整验证：`pnpm test` 共 761 项通过、0 项失败；`pnpm lint`、`pnpm typecheck`、`pnpm build`、`pnpm verify:zero-cost` 和 `git diff --check` 均以 0 退出。生产构建完成 18 个静态页面生成；仅保留 worktree 多 lockfile 根目录推断和 edge runtime 静态生成提示，没有构建错误。
+- 许可证复核确认 `fflate 0.8.3`、`@xmldom/xmldom 0.9.10` 均为 MIT 且运行时依赖数为 0；敏感扫描未发现 AKID 或私钥材料。
+- 真实 EPUB 二进制导出、MOBI/PDF、DRM、固定布局、漫画、多 rendition、图片/排版保留与云端 EPUB 原文件保存仍未实现；EdgeOne 平台操作继续暂停，本轮没有创建或写入任何云资源。

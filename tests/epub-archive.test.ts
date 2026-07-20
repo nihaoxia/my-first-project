@@ -100,6 +100,7 @@ test("resolves safe package-relative hrefs without allowing external or escaping
     resolveEpubPath("OPS/package.opf", "text/chapter%201.xhtml#top"),
     "OPS/text/chapter 1.xhtml",
   );
+  assert.equal(resolveEpubPath("OPS/nav.xhtml", "#toc"), "OPS/nav.xhtml");
   for (const href of ["https://example.com/a.xhtml", "//example.com/a.xhtml", "../outside.xhtml", "a.xhtml?raw=1", "a%2Fb.xhtml"]) {
     assert.throws(() => resolveEpubPath("package.opf", href), hasCode("EPUB_UNSAFE_ARCHIVE"), href);
   }
