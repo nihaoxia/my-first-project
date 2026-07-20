@@ -38,7 +38,11 @@ export default async function ReaderPage({
 
   return (
     <AppShell wide requireAuth>
-      <ReaderWorkspace title={translation.title} readerView={readerView} />
+      <ReaderWorkspace
+        title={translation.title}
+        readerView={readerView}
+        speechLanguage={translation.targetLanguage}
+      />
     </AppShell>
   );
 }

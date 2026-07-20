@@ -42,6 +42,7 @@ import {
 import { createReadingSaveQueue } from "@/lib/cloud/reading-save-queue";
 import { EpubDownloadButton } from "@/components/export/epub-download-button";
 import { TextDownloadButton } from "@/components/export/text-download-button";
+import { LocalSpeechControls } from "@/components/reader/local-speech-controls";
 import type {
   TextExportResult,
   TranslatedBookExportInput,
@@ -50,6 +51,7 @@ import type {
 type ReaderWorkspaceProps = {
   title: string;
   readerView: ReaderView;
+  speechLanguage?: string;
   download?: TextExportResult;
   epubDownloadInput?: TranslatedBookExportInput;
   translationId?: string;
@@ -143,7 +145,18 @@ const compactActionButtonClasses =
   "inline-flex h-9 items-center justify-center rounded-md bg-[var(--surface-2)] px-3 text-sm font-medium text-[var(--foreground)] transition-colors hover:bg-[var(--reader-highlight)] disabled:opacity-45";
 const localReaderSelectionsChangedEvent = "stray-pages.reader-selections-changed";
 
-export function ReaderWorkspace({ title, readerView, download, epubDownloadInput, translationId, persistence = "local", cloudSource, initialParagraphIndex = 0, initialReadingVersion = 0 }: ReaderWorkspaceProps) {
+export function ReaderWorkspace({
+  title,
+  readerView,
+  speechLanguage,
+  download,
+  epubDownloadInput,
+  translationId,
+  persistence = "local",
+  cloudSource,
+  initialParagraphIndex = 0,
+  initialReadingVersion = 0,
+}: ReaderWorkspaceProps) {
   const articleRef = useRef<HTMLElement>(null);
   const lookupCardRef = useRef<HTMLDivElement>(null);
   const [showToc, setShowToc] = useState(true);
@@ -159,6 +172,16 @@ export function ReaderWorkspace({ title, readerView, download, epubDownloadInput
   const [progressCanRetry, setProgressCanRetry] = useState(false);
   const [cloudVocabulary, setCloudVocabulary] = useState<Set<string>>(() => new Set());
   const [cloudSentences, setCloudSentences] = useState<Set<string>>(() => new Set());
+  const [activeSpeechParagraphIndex, setActiveSpeechParagraphIndex] =
+    useState<number | null>(null);
+  const speechParagraphs = useMemo(
+    () =>
+      readerView.paragraphRows.map((paragraph) => ({
+        index: paragraph.index,
+        text: paragraph.displayText,
+      })),
+    [readerView.paragraphRows],
+  );
   const readingContextRef = useRef({ chapterId: readerView.currentChapter.id, settings: { ...readerView.settings, theme }, paragraphIndex: initialParagraphIndex });
   readingContextRef.current = { chapterId: readerView.currentChapter.id, settings: { ...readerView.settings, theme }, paragraphIndex: readingContextRef.current.chapterId === readerView.currentChapter.id ? readingContextRef.current.paragraphIndex : initialParagraphIndex };
   const readingQueueRef = useRef<ReturnType<typeof createReadingSaveQueue> | null>(null);
@@ -233,6 +256,16 @@ export function ReaderWorkspace({ title, readerView, download, epubDownloadInput
     if (persistence !== "cloud" || initialParagraphIndex <= 0) return;
     document.getElementById(`reader-paragraph-${initialParagraphIndex}`)?.scrollIntoView({ block: "center" });
   }, [initialParagraphIndex, persistence]);
+
+  useEffect(() => {
+    if (activeSpeechParagraphIndex === null) {
+      return;
+    }
+
+    document
+      .getElementById(`reader-paragraph-${activeSpeechParagraphIndex}`)
+      ?.scrollIntoView({ block: "center" });
+  }, [activeSpeechParagraphIndex]);
 
   function saveCloudReading(paragraphIndex: number) {
     if (persistence !== "cloud" || !cloudSource) return;
@@ -496,6 +529,12 @@ export function ReaderWorkspace({ title, readerView, download, epubDownloadInput
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <LocalSpeechControls
+                chapterId={readerView.currentChapter.id}
+                language={speechLanguage}
+                paragraphs={speechParagraphs}
+                onActiveParagraphChange={setActiveSpeechParagraphIndex}
+              />
               {download ? (
                 <TextDownloadButton
                   content={download.content}
@@ -596,13 +635,19 @@ export function ReaderWorkspace({ title, readerView, download, epubDownloadInput
           >
             {readerView.paragraphRows.map((paragraph) => {
               const isExpanded = expandedTranslations.has(paragraph.index);
+              const isSpeechActive = activeSpeechParagraphIndex === paragraph.index;
 
               return (
                 <section
                   key={paragraph.index}
                   id={`reader-paragraph-${paragraph.index}`}
                   onClick={() => { void saveCloudReading(paragraph.index); }}
-                  className="relative rounded-md px-3 py-3 transition-colors hover:bg-[var(--surface-2)]"
+                  className={clsx(
+                    "relative rounded-md px-3 py-3 ring-1 ring-inset ring-transparent transition-colors hover:bg-[var(--surface-2)]",
+                    isSpeechActive &&
+                      "bg-[var(--reader-highlight)] ring-[var(--primary)]",
+                  )}
+                  aria-current={isSpeechActive ? "true" : undefined}
                 >
                   <p className="pr-12 text-pretty">{paragraph.learningText}</p>
                   <button

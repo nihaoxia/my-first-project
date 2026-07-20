@@ -103,6 +103,7 @@ export function LocalTranslationReader({
     <ReaderWorkspace
       title={state.translation.title}
       readerView={state.readerView}
+      speechLanguage={state.translation.targetLanguage}
       download={download}
       epubDownloadInput={exportInput}
       translationId={state.translation.id}
