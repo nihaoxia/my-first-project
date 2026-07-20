@@ -5,6 +5,7 @@ import {
   buildLocalUploadDraftFromFile,
   decodeLocalTxtBytes,
 } from "../src/lib/upload/local-upload-draft.ts";
+import { makeMinimalEpub3 } from "./epub-fixtures.ts";
 
 test("reads TXT file content before building a local upload draft", async () => {
   const draft = await buildLocalUploadDraftFromFile({
@@ -23,20 +24,44 @@ test("reads TXT file content before building a local upload draft", async () => 
   assert.equal(draft.chapters.length, 2);
 });
 
-test("does not advertise EPUB as usable before the EPUB parser exists", async () => {
-  let readCount = 0;
+test("reads EPUB bytes locally and returns a fully parsed upload draft", async () => {
+  const bytes = makeMinimalEpub3();
+  let textReadCount = 0;
+  let binaryReadCount = 0;
 
   const draft = await buildLocalUploadDraftFromFile({
     name: "迷雾边境 - 林间客.epub",
-    size: 2048,
+    size: bytes.byteLength,
     text: async () => {
-      readCount += 1;
+      textReadCount += 1;
       return "epub bytes";
+    },
+    arrayBuffer: async () => {
+      binaryReadCount += 1;
+      return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
     },
   });
 
-  assert.equal(readCount, 0);
-  assert.deepEqual(draft, { ok: false, reason: "unsupported-format" });
+  assert.equal(textReadCount, 0);
+  assert.equal(binaryReadCount, 1);
+  assert.equal(draft.ok, true);
+  if (!draft.ok) return;
+  assert.equal(draft.format, "EPUB");
+  assert.equal(draft.parseStatus, "parsed");
+  assert.equal(draft.chapters.length, 2);
+});
+
+test("maps unsafe EPUB structures to a stable local error", async () => {
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  assert.deepEqual(
+    await buildLocalUploadDraftFromFile({
+      name: "broken.epub",
+      size: bytes.byteLength,
+      text: async () => "",
+      arrayBuffer: async () => bytes.buffer,
+    }),
+    { ok: false, reason: "invalid-epub" },
+  );
 });
 
 test("decodes GB18030 TXT bytes when they are not valid UTF-8", () => {

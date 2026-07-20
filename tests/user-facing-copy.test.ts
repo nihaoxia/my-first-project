@@ -58,3 +58,14 @@ test("reader and notes advertise real text downloads without placeholder wording
   assert.equal(notesSource.includes("导出 Markdown"), true);
   assert.equal(combined.includes("下载尚未接入"), false);
 });
+
+test("local upload explains safe browser-only TXT and EPUB import", () => {
+  const panelSource = readFileSync("src/components/upload/local-upload-panel.tsx", "utf8");
+  const previewSource = readFileSync("src/components/upload/local-chapter-preview.tsx", "utf8");
+
+  assert.equal(panelSource.includes('accept=".txt,.epub,text/plain,application/epub+zip"'), true);
+  assert.equal(panelSource.includes("TXT 或 EPUB 文件"), true);
+  assert.equal(panelSource.includes("完全在浏览器本地"), true);
+  assert.equal(panelSource.includes("不上传原文件"), true);
+  assert.equal(previewSource.includes("TXT 或 EPUB 文件"), true);
+});

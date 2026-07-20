@@ -59,7 +59,7 @@ export function LocalChapterPreview() {
           <div>
             <h1 className="text-2xl font-semibold">没有找到可预览的章节</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted-foreground)]">
-              请先在导入页面选择一个可以拆章的 TXT 文件，再进入章节预览。
+              请先在导入页面选择一个可以拆章的 TXT 或 EPUB 文件，再进入章节预览。
             </p>
             <Button href={routes.upload} className="mt-5">
               返回导入
@@ -246,7 +246,7 @@ function LocalChapterPreviewReady({ draft }: { draft: StoredLocalUploadDraft }) 
           <div className="border-b border-[var(--border)] p-5">
             <h2 className="font-semibold">章节列表</h2>
             <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-              这里显示的是刚刚导入的 TXT 内容，可在左侧调整标题和跳过不需要的章节。
+              这里显示的是刚刚从 TXT 或 EPUB 文件提取的文字内容，可在左侧调整标题和跳过不需要的章节。
             </p>
           </div>
           <div className="divide-y divide-[var(--border)]">

@@ -30,11 +30,11 @@ test("accepts only parsed successful local upload drafts for storage", () => {
       ok: true,
       format: "EPUB",
       metadata: { title: "Demo", author: "", format: "EPUB", originalFileName: "demo.epub" },
-      parseStatus: "needs-epub-parser",
-      chapters: [],
+      parseStatus: "parsed",
+      chapters: [{ index: 1, title: "Chapter 1", content: "Text", contentPreview: "Text", characterCount: 4, suggestedSkip: false, warnings: [] }],
       warnings: [],
     }),
-    false,
+    true,
   );
   assert.equal(isStoredLocalUploadDraft(null), false);
   assert.equal(
@@ -79,5 +79,21 @@ test("clears stale local upload previews when the latest file cannot be previewe
       reason: "unsupported-format",
     }),
     { action: "clear" },
+  );
+});
+
+test("rejects parsed drafts with non-contiguous chapter indexes", () => {
+  assert.equal(
+    isStoredLocalUploadDraft({
+      ok: true,
+      format: "EPUB",
+      metadata: { title: "Demo", author: null, format: "EPUB", originalFileName: "demo.epub" },
+      parseStatus: "parsed",
+      chapters: [
+        { index: 2, title: "Chapter", content: "Text", contentPreview: "Text", characterCount: 4, suggestedSkip: false, warnings: [] },
+      ],
+      warnings: [],
+    }),
+    false,
   );
 });

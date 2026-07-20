@@ -22,10 +22,17 @@ type LocalUploadDraftFailureReason = Extract<LocalUploadDraftResult, { ok: false
 
 const uploadErrorLabels: Record<LocalUploadDraftFailureReason, string> = {
   "empty-name": "文件名为空，请重新选择文件。",
-  "unsupported-format": "当前本地版本只支持 TXT；EPUB、MOBI 和 PDF 解析尚未接入。",
+  "unsupported-format": "当前本地版本只支持 TXT 和 EPUB；MOBI、PDF 尚未接入。",
   "empty-file": "文件内容为空，请检查后重新选择。",
   "file-too-large": `文件超过 ${formatBytes(uploadFilePolicy.maxSizeBytes)}，请先拆分或压缩内容。`,
-  "file-read-failed": "浏览器读取 TXT 内容失败，请重新选择文件。",
+  "file-read-failed": "浏览器读取文件失败，请重新选择文件。",
+  "invalid-epub": "文件不是有效的 EPUB，或归档结构已经损坏。",
+  "epub-drm-unsupported": "这个 EPUB 使用加密或 DRM，当前无法导入。",
+  "epub-fixed-layout-unsupported": "固定布局 EPUB 暂不支持，请改用可重排文字版。",
+  "epub-multiple-renditions-unsupported": "包含多个版本的 EPUB 暂不支持。",
+  "epub-unsafe-archive": "EPUB 的文件路径或归档结构不安全，已停止读取。",
+  "epub-expanded-too-large": "EPUB 展开后的内容超过安全限制，请拆分或更换文件。",
+  "epub-no-readable-text": "EPUB 中没有可读取的文字章节。",
 };
 
 const parseStatusLabels = {
@@ -80,7 +87,7 @@ export function LocalUploadPanel() {
         ref={inputRef}
         className="sr-only"
         type="file"
-        accept=".txt,text/plain"
+        accept=".txt,.epub,text/plain,application/epub+zip"
         onChange={handleFileChange}
       />
 
@@ -89,9 +96,9 @@ export function LocalUploadPanel() {
           <div className="flex size-12 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--primary)]">
             <UploadCloud aria-hidden="true" size={24} />
           </div>
-          <h2 className="mt-5 text-xl font-semibold">选择 TXT 文件</h2>
+          <h2 className="mt-5 text-xl font-semibold">选择 TXT 或 EPUB 文件</h2>
           <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
-            TXT 可立即解码、拆章并保存到当前账号的本地书架。
+            TXT 可直接拆章；EPUB 完全在浏览器本地提取文字与章节，不上传原文件，也不保留图片和原排版。
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <Button type="button" variant="secondary" onClick={() => inputRef.current?.click()} disabled={isReading}>
@@ -114,17 +121,25 @@ export function LocalUploadPanel() {
           ) : null}
         </div>
 
-        <UploadDraftPreview draft={draft} isReading={isReading} />
+        <UploadDraftPreview draft={draft} isReading={isReading} fileName={fileName} />
       </div>
     </div>
   );
 }
 
-function UploadDraftPreview({ draft, isReading }: { draft: LocalUploadDraftResult | null; isReading: boolean }) {
+function UploadDraftPreview({
+  draft,
+  isReading,
+  fileName,
+}: {
+  draft: LocalUploadDraftResult | null;
+  isReading: boolean;
+  fileName: string | null;
+}) {
   if (isReading) {
     return (
       <div className="flex min-h-48 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-5 text-sm text-[var(--muted-foreground)]">
-        正在读取文件内容
+        {fileName?.toLowerCase().endsWith(".epub") ? "正在读取并检查 EPUB" : "正在读取文件内容"}
       </div>
     );
   }
@@ -169,12 +184,6 @@ function UploadDraftPreview({ draft, isReading }: { draft: LocalUploadDraftResul
           <dd className="mt-1 font-medium">{draft.chapters.length} 章</dd>
         </div>
       </dl>
-
-      {draft.parseStatus === "needs-epub-parser" ? (
-        <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
-          EPUB 文件已识别。请先确认书籍信息，章节内容会在可用时继续整理。
-        </p>
-      ) : null}
 
       {draft.parseStatus === "needs-file-parser" ? (
         <p className="mt-4 text-sm leading-6 text-[var(--muted-foreground)]">
