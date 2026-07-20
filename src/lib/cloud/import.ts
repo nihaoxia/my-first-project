@@ -2,6 +2,11 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { getDb } from "../db";
+import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
+import { getEdgeOneRuntimeConfig } from "../edgeone/runtime-config";
+import { createEdgeOneBooksRepository } from "./edgeone-books-repository";
+import { createEdgeOneImportRepository } from "./edgeone-import-repository";
+import { createEdgeOneStudyRepository } from "./edgeone-study-repository";
 import { createCloudImportService, type CloudImportRepository, type ImportKind, type PreparedImportItem } from "./import-core";
 import { findUniqueOriginalMatchByPages, findUniqueTranslationMatchByPages, LOOKUP_PAGE_SIZE } from "./import-lookup";
 import { readingStateLockKey } from "./reading-state-lock";
@@ -76,5 +81,62 @@ async function resolveChapter(tx: Prisma.TransactionClient, originalBookId: stri
 function mapReceipt(row: { userId: string; kind: keyof typeof kindFromDb; sourceId: string; sourceVersion: number; payloadHash: string; targetId: string }) { return { userId: row.userId, kind: kindFromDb[row.kind] as ImportKind, sourceId: row.sourceId, sourceVersion: row.sourceVersion, payloadHash: row.payloadHash, targetId: row.targetId }; }
 
 let singleton: ReturnType<typeof createCloudImportService> | undefined;
-export function getCloudImportService() { return singleton ??= createCloudImportService({ repository: createPrismaCloudImportRepository() }); }
+export function getCloudImportService() {
+  if (singleton) return singleton;
+  if (process.env.CLOUD_DATA_PROVIDER === "edgeone") {
+    const config = getEdgeOneRuntimeConfig();
+    const blob = getAuthoritativeBlobStore(config.blobStore);
+    const uuid = () => crypto.randomUUID();
+    const now = () => new Date();
+    const books = createEdgeOneBooksRepository({ blob, now, uuid });
+    const resolveOriginalSource = async (userId: string, originalBookId: string, chapterId: string | null) => {
+      const book = await books.find(userId, originalBookId);
+      const chapter = chapterId ? book?.chapters?.find((value) => value.id === chapterId) : null;
+      if (!book || (chapterId && !chapter)) return null;
+      return { originalBookId: book.id, bookTitle: book.title, chapterId: chapter?.id ?? null, chapterTitle: chapter?.title ?? null };
+    };
+    const study = createEdgeOneStudyRepository({
+      blob, now, uuid, resolveOriginalSource,
+      async resolveTranslatedSource() { return null; },
+    });
+    const normalize = (value: string) => value.normalize("NFKC").trim().toLowerCase();
+    const repository = createEdgeOneImportRepository({
+      blob, uuid,
+      async createTarget(item) {
+        const timestamp = now();
+        if (item.kind === "note") {
+          const row = await study.create({ id: uuid(), userId: item.userId, kind: "note", title: item.payload.title,
+            content: item.payload.content, targetType: "FREEFORM", originalBookId: null, translatedBookId: null,
+            chapterId: null, targetLabel: "", createdAt: timestamp, updatedAt: timestamp });
+          return { ok: true, targetId: row.id };
+        }
+        if (!item.source || item.source.translationTitle) return { ok: false, code: "SOURCE_NOT_FOUND" };
+        const candidates = (await books.list(item.userId)).filter((book) => normalize(book.title) === normalize(item.source!.bookTitle));
+        if (candidates.length !== 1) return { ok: false, code: "SOURCE_NOT_FOUND" };
+        const book = candidates[0];
+        const chapters = item.source.chapterTitle
+          ? book.chapters?.filter((chapter) => normalize(chapter.title) === normalize(item.source!.chapterTitle!)) ?? []
+          : [];
+        if (item.source.chapterTitle && chapters.length !== 1) return { ok: false, code: "SOURCE_NOT_FOUND" };
+        const chapter = chapters[0] ?? null;
+        if (item.kind === "reading") {
+          if ((await study.list(item.userId, "reading", book.id, { limit: 1 })).items.length) return { ok: false, code: "INVALID_TARGET" };
+          const row = await study.upsertReading({ id: uuid(), userId: item.userId, kind: "reading", originalBookId: book.id,
+            translatedBookId: null, chapterId: chapter?.id ?? null, paragraphIndex: item.payload.paragraphIndex,
+            settings: item.payload.settings, expectedVersion: 0, bookTitle: book.title,
+            chapterTitle: chapter?.title ?? null, updatedAt: timestamp });
+          return row ? { ok: true, targetId: row.id } : { ok: false, code: "INVALID_TARGET" };
+        }
+        const row = await study.create({ id: uuid(), userId: item.userId, kind: item.kind, originalBookId: book.id,
+          chapterId: chapter?.id ?? null, bookTitle: book.title, chapterTitle: chapter?.title ?? null,
+          ...item.payload, createdAt: timestamp, updatedAt: timestamp });
+        return { ok: true, targetId: row.id };
+      },
+    });
+    singleton = createCloudImportService({ repository });
+    return singleton;
+  }
+  singleton = createCloudImportService({ repository: createPrismaCloudImportRepository() });
+  return singleton;
+}
 export { CloudImportError } from "./import-core";

@@ -2,6 +2,10 @@ import "server-only";
 
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { getDb } from "../db";
+import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
+import { getEdgeOneRuntimeConfig } from "../edgeone/runtime-config";
+import { createEdgeOneBooksRepository } from "./edgeone-books-repository";
+import { createEdgeOneStudyRepository } from "./edgeone-study-repository";
 import { createCloudStudyService, type CloudStudyKind, type CloudStudyRecord, type CloudStudyRepository } from "./study-core";
 import { readingStateLockKey } from "./reading-state-lock";
 import { withSerializableRetry } from "./serializable-retry";
@@ -95,5 +99,26 @@ function finishPage<T extends { id: string }, R extends CloudStudyRecord>(rows: 
 }
 
 let singleton: ReturnType<typeof createCloudStudyService> | undefined;
-export function getCloudStudyService() { return singleton ??= createCloudStudyService({ repository: createPrismaCloudStudyRepository() }); }
+export function getCloudStudyService() {
+  if (singleton) return singleton;
+  if (process.env.CLOUD_DATA_PROVIDER === "edgeone") {
+    const config = getEdgeOneRuntimeConfig();
+    const blob = getAuthoritativeBlobStore(config.blobStore);
+    const books = createEdgeOneBooksRepository({ blob, now: () => new Date(), uuid: () => crypto.randomUUID() });
+    const repository = createEdgeOneStudyRepository({
+      blob, now: () => new Date(), uuid: () => crypto.randomUUID(),
+      async resolveOriginalSource(userId, originalBookId, chapterId) {
+        const book = await books.find(userId, originalBookId);
+        const chapter = chapterId ? book?.chapters?.find((value) => value.id === chapterId) : null;
+        if (!book || (chapterId && !chapter)) return null;
+        return { originalBookId: book.id, bookTitle: book.title, chapterId: chapter?.id ?? null, chapterTitle: chapter?.title ?? null };
+      },
+      async resolveTranslatedSource() { return null; },
+    });
+    singleton = createCloudStudyService({ repository });
+    return singleton;
+  }
+  singleton = createCloudStudyService({ repository: createPrismaCloudStudyRepository() });
+  return singleton;
+}
 export { CloudStudyError } from "./study-core";

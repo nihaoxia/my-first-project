@@ -137,7 +137,14 @@ export function createEdgeOneBooksRepository(input: {
       return hydrated(existing.value);
     }
     const createdAt = time();
-    const record: CloudBookRecord = { ...value, uploadedAt: new Date(createdAt) };
+    const record: CloudBookRecord = {
+      ...value,
+      uploadedAt: new Date(createdAt),
+      chapters: value.chapters.map((chapter) => ({
+        ...chapter,
+        id: chapter.id ?? input.uuid(),
+      })),
+    };
     const revision: Revision<StoredBook> = {
       id: input.uuid(), parentIds: [], operationId: input.uuid(), createdAt,
       deleted: false, value: stored(record),
