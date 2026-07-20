@@ -47,6 +47,8 @@ test("batch summaries are immutable, owner-scoped and restore Date values", asyn
 
 test("production import factory selects EdgeOne before Prisma", async () => {
   const source = await readFile(new URL("../src/lib/cloud/import.ts", import.meta.url), "utf8");
+  const factory = await readFile(new URL("../src/lib/cloud/service-factory.ts", import.meta.url), "utf8");
   assert.ok(source.indexOf('CLOUD_DATA_PROVIDER === "edgeone"') < source.indexOf("createPrismaCloudImportRepository()"));
-  assert.match(source, /createEdgeOneImportRepository/);
+  assert.match(source, /getCloudServices\(\)\.imports/);
+  assert.match(factory, /createEdgeOneImportRepository/);
 });

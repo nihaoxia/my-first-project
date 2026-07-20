@@ -75,6 +75,8 @@ test("source resolution is delegated to authoritative owner-scoped repositories"
 
 test("production study factory selects EdgeOne before Prisma", async () => {
   const source = await readFile(new URL("../src/lib/cloud/study.ts", import.meta.url), "utf8");
+  const factory = await readFile(new URL("../src/lib/cloud/service-factory.ts", import.meta.url), "utf8");
   assert.ok(source.indexOf('CLOUD_DATA_PROVIDER === "edgeone"') < source.indexOf("createPrismaCloudStudyRepository()"));
-  assert.match(source, /createEdgeOneStudyRepository/);
+  assert.match(source, /getCloudServices\(\)\.study/);
+  assert.match(factory, /createEdgeOneStudyRepository/);
 });

@@ -2,10 +2,8 @@ import "server-only";
 
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { getDb } from "../db";
-import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
-import { getEdgeOneRuntimeConfig } from "../edgeone/runtime-config";
 import { createCloudBooksService, type CloudBookRecord, type CloudBooksRepository, type CloudBooksTransaction, type CreateBookPersistence } from "./books-core";
-import { createEdgeOneBooksRepository } from "./edgeone-books-repository";
+import { getCloudServices } from "./service-factory";
 import { getOriginalBookStorage } from "./storage";
 
 export { CloudBookError } from "./books-core";
@@ -124,19 +122,10 @@ async function upsertCleanup(db: DbClient, input: { userId: string; bucket: stri
 let singleton: ReturnType<typeof createCloudBooksService> | undefined;
 export function getCloudBooksService() {
   if (singleton) return singleton;
-  const storage = getOriginalBookStorage();
   if (process.env.CLOUD_DATA_PROVIDER === "edgeone") {
-    const config = getEdgeOneRuntimeConfig();
-    singleton = createCloudBooksService({
-      repository: createEdgeOneBooksRepository({
-        blob: getAuthoritativeBlobStore(config.blobStore),
-        now: () => new Date(),
-        uuid: () => crypto.randomUUID(),
-      }),
-      storage,
-    });
-    return singleton;
+    return (singleton = getCloudServices().books);
   }
+  const storage = getOriginalBookStorage();
   singleton = createCloudBooksService({ repository: createPrismaCloudBooksRepository(), storage });
   return singleton;
 }

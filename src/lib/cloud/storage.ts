@@ -1,54 +1,19 @@
 import "server-only";
 
 import { createClient } from "@supabase/supabase-js";
-import { randomBytes } from "@noble/hashes/utils.js";
-import { getAppSession } from "../auth/app-session";
-import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
-import { createEdgeOneQuotaService } from "../edgeone/quota-service-core";
-import { getEdgeOneRuntimeConfig } from "../edgeone/runtime-config";
 import { getCloudServerConfig } from "./server-config";
 import { createCosStorageProviderFromConfig } from "./cos-storage-provider";
-import { createEdgeOneStorageProvider } from "./edgeone-storage-provider";
+import { getCloudServices } from "./service-factory";
 import {
   createCloudStorageService,
   isSupabaseStorageNotFoundError,
-  parseOriginalBookObjectPath,
 } from "./storage-core";
 
 export { CloudStorageError } from "./storage-core";
 
 export function getOriginalBookStorage() {
   if (process.env.CLOUD_STORAGE_PROVIDER === "edgeone") {
-    const config = getEdgeOneRuntimeConfig();
-    const blob = getAuthoritativeBlobStore(config.blobStore);
-    const quota = createEdgeOneQuotaService(blob);
-    const providerFor = async (path: string, requireSession: boolean) => {
-      const parsed = parseOriginalBookObjectPath(path);
-      if (!parsed) throw Object.assign(new Error("INVALID_OBJECT_PATH"), { code: "INVALID_OBJECT_PATH" });
-      if (requireSession) {
-        const session = await getAppSession();
-        if (!session || session.user.id !== parsed.userId) {
-          throw Object.assign(new Error("INVALID_OBJECT_PATH"), { code: "INVALID_OBJECT_PATH" });
-        }
-      }
-      return createEdgeOneStorageProvider({
-        blob, quota, userId: parsed.userId,
-        now: () => new Date(),
-        uuid: () => crypto.randomUUID(),
-        randomBytes,
-        downloadSecret: config.sessionSecret,
-      });
-    };
-    return createCloudStorageService({
-      bucket: config.blobStore,
-      provider: {
-        async upload(path, bytes) { return (await providerFor(path, false)).upload(path, bytes); },
-        async remove(path) { return (await providerFor(path, false)).remove(path); },
-        async createSignedUrl(path, expiresInSeconds) {
-          return (await providerFor(path, true)).createSignedUrl(path, expiresInSeconds);
-        },
-      },
-    });
+    return getCloudServices().storage;
   }
 
   const result = getCloudServerConfig();

@@ -1,9 +1,9 @@
 import "server-only";
 
-import { getEdgeOneAccountService } from "./edgeone-account";
 import { deriveMockUserId } from "./app-session-core";
 import { validateMockLoginInput } from "./mock-policy";
 import { clearMockSession, setMockSession } from "./mock-session";
+import { getCloudServices } from "../cloud/service-factory";
 
 export function getEdgeOneAuthService() {
   if (
@@ -33,5 +33,5 @@ export function getEdgeOneAuthService() {
       code: "AUTH_MODE_FORBIDDEN",
     });
   }
-  return getEdgeOneAccountService();
+  return getCloudServices().auth;
 }

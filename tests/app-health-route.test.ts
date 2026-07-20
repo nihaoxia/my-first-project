@@ -6,19 +6,12 @@ import { buildAppHealthResponse } from "../src/app/api/health/route.ts";
 const secret = "health-secret-that-must-not-leak";
 const validEnvironment = {
   NODE_ENV: "production",
-  CLOUD_MODE: "required",
-  AUTH_MODE: "supabase",
-  NEXT_PUBLIC_SUPABASE_URL: "https://api.example.com",
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: "public-anon-key",
-  CLOUD_STORAGE_PROVIDER: "cos",
-  DATABASE_URL: "postgresql://user:password@postgres:5432/postgres",
-  COS_SECRET_ID: `health-secret-id-${secret}`,
-  COS_SECRET_KEY: secret,
-  COS_BUCKET: "original-books-1250000000",
-  COS_REGION: "ap-guangzhou",
-  TRANSLATION_MCP_URL: "http://translation-mcp:8787/mcp",
-  TRANSLATION_MCP_SECRET: secret.repeat(2),
-  TRANSLATION_MCP_TIMEOUT_MS: "180000",
+  AUTH_MODE: "edgeone",
+  CLOUD_DATA_PROVIDER: "edgeone",
+  CLOUD_STORAGE_PROVIDER: "edgeone",
+  EDGEONE_BLOB_STORE: "stray-pages-production",
+  EDGEONE_SESSION_SECRET: secret.repeat(3),
+  EDGEONE_FREE_MODEL_CONFIRMED: "false",
 };
 
 test("app health reports stable configured capabilities without internal details", async () => {
@@ -29,10 +22,10 @@ test("app health reports stable configured capabilities without internal details
   assert.deepEqual(body, {
     status: "ok",
     configured: true,
-    capabilities: { auth: true, storage: true, translation: true },
+    capabilities: { web: true, auth: true, blob: true, quota: true },
   });
   const serialized = JSON.stringify(body);
-  for (const value of [secret, "postgres", "api.example.com", "original-books", "translation-mcp"]) {
+  for (const value of [secret, "stray-pages-production", "edgeone"]) {
     assert.equal(serialized.includes(value), false);
   }
   assert.equal(response.headers.get("cache-control"), "no-store");
@@ -45,6 +38,6 @@ test("app health fails closed with stable false capabilities", async () => {
   assert.deepEqual(await response.json(), {
     status: "unavailable",
     configured: false,
-    capabilities: { auth: false, storage: false, translation: false },
+    capabilities: { web: true, auth: false, blob: false, quota: false },
   });
 });

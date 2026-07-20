@@ -170,16 +170,18 @@ test("strong create validation rejects skipped, inactive and same-language chapt
 
 test("production composes EdgeOne revisions and free-quota Models before Prisma", async () => {
   const source = await readFile(new URL("../src/lib/cloud/translations.ts", import.meta.url), "utf8");
+  const factory = await readFile(new URL("../src/lib/cloud/service-factory.ts", import.meta.url), "utf8");
   const edgeOneBranch = source.indexOf('CLOUD_DATA_PROVIDER === "edgeone"');
   const prismaCreation = source.indexOf("createPrismaCloudTranslationRepository()");
   const edgeOneBranchEnd = source.indexOf("\n  }\n  const provider", edgeOneBranch);
   assert.ok(edgeOneBranch >= 0 && prismaCreation > edgeOneBranch);
   assert.ok(edgeOneBranchEnd > edgeOneBranch);
   const production = source.slice(edgeOneBranch, edgeOneBranchEnd);
-  assert.match(production, /createEdgeOneTranslationsRepository/);
-  assert.match(production, /createEdgeOneModelsTranslationProvider/);
-  assert.match(production, /createFreeQuotaTranslationProvider/);
-  assert.match(production, /createEdgeOneQuotaService/);
-  assert.match(production, /userId: EDGEONE_MODEL_QUOTA_LEDGER_ID/);
+  assert.match(production, /getCloudServices\(\)\.translations/);
+  assert.match(factory, /createEdgeOneTranslationsRepository/);
+  assert.match(factory, /createEdgeOneModelsTranslationProvider/);
+  assert.match(factory, /createFreeQuotaTranslationProvider/);
+  assert.match(factory, /createEdgeOneQuotaService/);
+  assert.match(factory, /userId: EDGEONE_MODEL_QUOTA_LEDGER_ID/);
   assert.doesNotMatch(production, /resolveProvider|createMcpTranslationProvider|reserveBalance|accountBalance|balanceHold/);
 });

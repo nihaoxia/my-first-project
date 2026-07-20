@@ -24,6 +24,7 @@ function harness(options: { createFails?: boolean } = {}) {
   const data = new Map<string, unknown>();
   const calls: string[] = [];
   const ledgerSegments: string[] = [];
+  const ledgerIds: string[] = [];
   const sdk = {
     async set(key: string, value: Uint8Array, config?: { onlyIfNew?: boolean }) {
       calls.push("create");
@@ -42,10 +43,12 @@ function harness(options: { createFails?: boolean } = {}) {
     async list() { return { blobs: [] }; },
   };
   const quota = {
-    async getUsage() {
+    async getUsage(userId: string) {
+      ledgerIds.push(userId);
       return { state: "ready" as const, committed: 0, reserved: 0, tokensCommitted: 0, tokensReserved: 0 };
     },
-    async appendEvent(_userId: string, month: string, event: UsageEvent) {
+    async appendEvent(userId: string, month: string, event: UsageEvent) {
+      ledgerIds.push(userId);
       ledgerSegments.push(month);
       if (event.type === "UPLOAD_RESERVED") calls.push(`reserve:${event.bytes}`);
       if (event.type === "UPLOAD_COMMITTED") calls.push(`commit:${event.actualBytes}`);
@@ -61,11 +64,11 @@ function harness(options: { createFails?: boolean } = {}) {
     randomBytes: (length: number) => new Uint8Array(length).fill(7),
     downloadSecret: SECRET,
   });
-  return { provider, calls, data, ledgerSegments };
+  return { provider, calls, data, ledgerSegments, ledgerIds };
 }
 
 test("EdgeOne upload reserves full capacity, creates once, then commits actual bytes", async () => {
-  const { provider, calls, ledgerSegments } = harness();
+  const { provider, calls, ledgerSegments, ledgerIds } = harness();
   await provider.upload(PATH, new TextEncoder().encode("hello"));
   assert.deepEqual(calls, [
     `reserve:${APPLICATION_UPLOAD_LIMIT_BYTES}`,
@@ -73,6 +76,8 @@ test("EdgeOne upload reserves full capacity, creates once, then commits actual b
     "commit:5",
   ]);
   assert.deepEqual(ledgerSegments, ["blob", "blob"]);
+  assert.equal(providerApi().EDGEONE_BLOB_QUOTA_LEDGER_ID, "blob-storage-global");
+  assert.deepEqual(ledgerIds, ["blob-storage-global", "blob-storage-global", "blob-storage-global"]);
 });
 
 test("a failed upload releases its full reservation without leaking provider details", async () => {
@@ -127,11 +132,12 @@ test("download tokens bind path, expiry and nonce and reject tampering", () => {
 
 test("production storage selects EdgeOne before legacy providers", async () => {
   const source = await readFile(new URL("../src/lib/cloud/storage.ts", import.meta.url), "utf8");
+  const factory = await readFile(new URL("../src/lib/cloud/service-factory.ts", import.meta.url), "utf8");
   const edgeOne = source.indexOf('CLOUD_STORAGE_PROVIDER === "edgeone"');
   const legacy = source.indexOf("getCloudServerConfig()");
   assert.ok(edgeOne >= 0 && legacy > edgeOne);
-  assert.match(source, /createEdgeOneStorageProvider/);
-  assert.match(source, /getAppSession/);
+  assert.match(source, /getCloudServices\(\)\.storage/);
+  assert.match(factory, /createEdgeOneStorageProvider/);
 });
 
 test("download route revalidates session and reads only strong private Blob bytes", async () => {

@@ -20,6 +20,8 @@ type QuotaService = {
   appendEvent(userId: string, month: string, event: UsageEvent): Promise<void>;
 };
 
+export const EDGEONE_BLOB_QUOTA_LEDGER_ID = "blob-storage-global";
+
 type ProviderErrorCode =
   | "EDGEONE_STORAGE_UPLOAD_FAILED"
   | "EDGEONE_OBJECT_CONFLICT"
@@ -81,10 +83,10 @@ export function createEdgeOneStorageProvider(input: {
         throw new EdgeOneStorageProviderError("EDGEONE_STORAGE_UPLOAD_FAILED");
       }
       const time = timestamp();
-      const usage = await input.quota.getUsage(input.userId, ledgerSegment);
+      const usage = await input.quota.getUsage(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment);
       assertFreeCapacity(usage, APPLICATION_UPLOAD_LIMIT_BYTES);
       const reservationId = input.uuid();
-      await input.quota.appendEvent(input.userId, ledgerSegment, {
+      await input.quota.appendEvent(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment, {
         type: "UPLOAD_RESERVED", id: reservationId, userId: input.userId,
         bytes: APPLICATION_UPLOAD_LIMIT_BYTES, at: time.iso,
       });
@@ -95,20 +97,20 @@ export function createEdgeOneStorageProvider(input: {
       } catch (error) {
         if ((error as { code?: string }).code === "BLOB_ALREADY_EXISTS") {
           const existing = await input.blob.getBytes(key);
-          await input.quota.appendEvent(input.userId, ledgerSegment, {
+          await input.quota.appendEvent(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment, {
             type: "UPLOAD_RELEASED", id: input.uuid(), reservationId, at: time.iso,
           });
           if (existing && equalBytes(new Uint8Array(existing), bytes)) return;
           throw new EdgeOneStorageProviderError("EDGEONE_OBJECT_CONFLICT");
         }
-        await input.quota.appendEvent(input.userId, ledgerSegment, {
+        await input.quota.appendEvent(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment, {
           type: "UPLOAD_RELEASED", id: input.uuid(), reservationId, at: time.iso,
         });
         throw new EdgeOneStorageProviderError("EDGEONE_STORAGE_UPLOAD_FAILED");
       }
 
       try {
-        await input.quota.appendEvent(input.userId, ledgerSegment, {
+        await input.quota.appendEvent(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment, {
           type: "UPLOAD_COMMITTED", id: input.uuid(), reservationId,
           objectId: key, actualBytes: bytes.byteLength, at: time.iso,
         });
@@ -127,7 +129,7 @@ export function createEdgeOneStorageProvider(input: {
       const time = timestamp();
       try {
         await input.blob.remove(key);
-        await input.quota.appendEvent(input.userId, ledgerSegment, {
+        await input.quota.appendEvent(EDGEONE_BLOB_QUOTA_LEDGER_ID, ledgerSegment, {
           type: "OBJECT_DELETED", id: input.uuid(), objectId: key,
           bytes: existing.byteLength, at: time.iso,
         });

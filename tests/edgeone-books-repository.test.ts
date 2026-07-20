@@ -117,8 +117,10 @@ test("cleanup intents remain durable across explicit transaction contexts", asyn
 
 test("production books factory chooses the EdgeOne repository before Prisma", async () => {
   const source = await readFile(new URL("../src/lib/cloud/books.ts", import.meta.url), "utf8");
+  const factory = await readFile(new URL("../src/lib/cloud/service-factory.ts", import.meta.url), "utf8");
   const edgeOne = source.indexOf('CLOUD_DATA_PROVIDER === "edgeone"');
   const prisma = source.indexOf("createPrismaCloudBooksRepository()");
   assert.ok(edgeOne >= 0 && prisma > edgeOne);
-  assert.match(source, /createEdgeOneBooksRepository/);
+  assert.match(source, /getCloudServices\(\)\.books/);
+  assert.match(factory, /createEdgeOneBooksRepository/);
 });
