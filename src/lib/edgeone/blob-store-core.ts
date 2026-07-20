@@ -3,6 +3,7 @@ import type { BlobListItem, BlobSdkStore } from "./blob-types.ts";
 export type EdgeOneBlobErrorCode =
   | "INVALID_BLOB_KEY"
   | "BLOB_ALREADY_EXISTS"
+  | "BLOB_WRITE_DISABLED"
   | "BLOB_READ_FAILED"
   | "BLOB_WRITE_FAILED"
   | "BLOB_DELETE_FAILED"
@@ -161,3 +162,22 @@ export function createAuthoritativeBlobStore(sdk: BlobSdkStore) {
 export type AuthoritativeBlobStore = ReturnType<
   typeof createAuthoritativeBlobStore
 >;
+
+export function createWriteGatedAuthoritativeBlobStore(
+  store: AuthoritativeBlobStore,
+  writesConfirmed: boolean,
+): AuthoritativeBlobStore {
+  if (writesConfirmed) return store;
+  const rejectWrite = (): never => {
+    throw new EdgeOneBlobError("BLOB_WRITE_DISABLED");
+  };
+  return {
+    getJSON: store.getJSON,
+    getText: store.getText,
+    getBytes: store.getBytes,
+    listAll: store.listAll,
+    async createJSON() { rejectWrite(); },
+    async createBytes() { rejectWrite(); },
+    async remove() { rejectWrite(); },
+  };
+}

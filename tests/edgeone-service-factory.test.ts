@@ -51,6 +51,8 @@ test("runtime factory imports no paid client and EdgeOne getters delegate to it"
   assert.doesNotMatch(factory, /from\s+["'][^"']*(?:@prisma|supabase|cos-storage|mcp-translation|tencent.*sms)[^"']*["']/i);
   assert.match(factory, /createProductionCloudServices/);
   assert.match(factory, /createEdgeOneAccountService/);
+  assert.match(factory, /createWriteGatedAuthoritativeBlobStore/);
+  assert.match(factory, /config\.freeBlobConfirmed/);
   assert.match(factory, /createEdgeOneBooksRepository/);
   assert.match(factory, /createEdgeOneStudyRepository/);
   assert.match(factory, /createEdgeOneImportRepository/);

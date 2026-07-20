@@ -97,3 +97,37 @@ test("invalid or oversized keys fail before reaching the SDK", async () => {
   }
   assert.equal(calls, 0);
 });
+
+test("unconfirmed free Blob status keeps strong reads but disables every mutation", async () => {
+  const calls: string[] = [];
+  const store = api().createAuthoritativeBlobStore(sdk({
+    async get() { calls.push("get"); return { id: "existing" }; },
+    async list() { calls.push("list"); return { blobs: [] }; },
+    async setJSON() { calls.push("setJSON"); },
+    async set() { calls.push("set"); },
+    async delete() { calls.push("delete"); },
+  }));
+  const gated = api().createWriteGatedAuthoritativeBlobStore(store, false);
+
+  assert.deepEqual(await gated.getJSON("data/existing.json"), { id: "existing" });
+  assert.deepEqual(await gated.listAll("data/"), []);
+  await assert.rejects(() => gated.createJSON("data/new.json", {}), { code: "BLOB_WRITE_DISABLED" });
+  await assert.rejects(() => gated.createBytes("data/new.txt", new Uint8Array()), { code: "BLOB_WRITE_DISABLED" });
+  await assert.rejects(() => gated.remove("data/existing.json"), { code: "BLOB_WRITE_DISABLED" });
+  assert.deepEqual(calls, ["get", "list"]);
+});
+
+test("confirmed free Blob status permits mutations through the same central gate", async () => {
+  const calls: string[] = [];
+  const store = api().createAuthoritativeBlobStore(sdk({
+    async setJSON() { calls.push("setJSON"); },
+    async set() { calls.push("set"); },
+    async delete() { calls.push("delete"); },
+  }));
+  const gated = api().createWriteGatedAuthoritativeBlobStore(store, true);
+
+  await gated.createJSON("data/new.json", {});
+  await gated.createBytes("data/new.txt", new Uint8Array());
+  await gated.remove("data/old.json");
+  assert.deepEqual(calls, ["setJSON", "set", "delete"]);
+});

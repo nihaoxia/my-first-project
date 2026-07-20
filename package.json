@@ -21,6 +21,8 @@
     "sms-hook:build": "tsup src/server/sms-hook/index.ts --format esm --platform node --target node22 --out-dir dist/sms-hook --clean",
     "sms-hook:start": "node dist/sms-hook/index.js",
     "smoke:production": "node scripts/production-smoke.mjs",
+    "smoke:edgeone": "node scripts/edgeone-smoke.mjs",
+    "verify:zero-cost": "node scripts/verify-zero-cost-production.mjs",
     "verify:deployment": "node --experimental-strip-types --test tests/production-deployment-contract.test.ts tests/production-smoke.test.ts",
     "release:tencent": "sh deploy/tencent-cloud/release.sh",
     "supabase:start": "pnpm dlx supabase@2.90.0 start",

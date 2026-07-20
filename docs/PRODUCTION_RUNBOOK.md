@@ -1,6 +1,10 @@
-# Stray Pages 腾讯云国内生产运行手册
+# 已废弃：Stray Pages 腾讯云付费生产运行手册
 
-本手册是生产部署的唯一权威入口。目标架构位于腾讯云广州：Caddy、Next.js、自托管 Supabase Auth/PostgREST/PostgreSQL、Translation MCP 和腾讯云短信 Hook 在同一台 Linux 云服务器的 Docker Compose 中运行；原文存入广州私有 COS；项目镜像存入 TCR 私有仓库。生产服务器只运行固定 Git SHA 镜像，不执行 `git pull`。
+> **停止使用。** 本文记录的是历史付费架构，包含云服务器、TCR、COS、短信和付费域名，不再是生产入口。当前唯一允许的零费用生产手册是 [EDGEONE_ZERO_COST_RUNBOOK.md](./EDGEONE_ZERO_COST_RUNBOOK.md)。不得按本文创建、购买、续费、试用或写入任何资源；保留正文只用于历史审计。
+
+# Stray Pages 腾讯云国内生产运行手册（历史）
+
+本历史手册曾经描述以下已停用方案，不再具有部署授权：目标架构位于腾讯云广州，Caddy、Next.js、自托管 Supabase Auth/PostgREST/PostgreSQL、Translation MCP 和腾讯云短信 Hook 在同一台 Linux 云服务器的 Docker Compose 中运行；原文存入广州私有 COS；项目镜像存入 TCR 私有仓库。以下正文只用于审计旧设计。
 
 密码、JWT、OTP、手机号、连接串、SecretId、SecretKey、模型密钥和 Hook secret 均不得进入 Git、聊天、截图、CI 日志或验收记录。
 

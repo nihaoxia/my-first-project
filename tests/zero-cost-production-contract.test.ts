@@ -11,6 +11,8 @@ const runtimeWrapperPath = new URL(
   import.meta.url,
 );
 const envExamplePath = new URL("../.env.example", import.meta.url);
+const edgeOneDeploymentPath = new URL("../deploy/edgeone/edgeone.json", import.meta.url);
+const edgeOneEnvironmentPath = new URL("../deploy/edgeone/env.example", import.meta.url);
 
 async function readOrEmpty(url: URL): Promise<string> {
   try {
@@ -49,6 +51,7 @@ test("environment example documents EdgeOne without usable secrets", async () =>
   assert.match(source, /CLOUD_STORAGE_PROVIDER=edgeone/);
   assert.match(source, /EDGEONE_BLOB_STORE=/);
   assert.match(source, /EDGEONE_SESSION_SECRET=/);
+  assert.match(source, /EDGEONE_FREE_BLOB_CONFIRMED=false/);
   assert.match(source, /EDGEONE_FREE_MODEL_CONFIRMED=false/);
   assert.match(source, /MAKERS_MODELS_KEY=/);
   assert.doesNotMatch(
@@ -77,4 +80,17 @@ test("authoritative authentication modules never depend on eventually consistent
     assert.notEqual(source, "", path);
     assert.doesNotMatch(source, /kv-cache/iu, path);
   }
+});
+
+test("canonical EdgeOne deployment artifacts contain no paid-resource path", async () => {
+  const source = [
+    await readOrEmpty(edgeOneDeploymentPath),
+    await readOrEmpty(edgeOneEnvironmentPath),
+  ].join("\n");
+  assert.notEqual(source.trim(), "");
+  assert.doesNotMatch(
+    source,
+    /RunInstances|CreateInstances|SendSms|PutObject.*COS|buy\.cloud\.tencent|docker|TCR|CVM/iu,
+  );
+  assert.doesNotMatch(source, /CLOUD_STORAGE_PROVIDER=(?:cos|supabase)/iu);
 });

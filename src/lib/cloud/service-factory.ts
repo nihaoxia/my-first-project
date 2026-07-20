@@ -4,6 +4,7 @@ import { randomBytes } from "@noble/hashes/utils.js";
 
 import { createEdgeOneAccountService } from "../auth/edgeone-account-service-core";
 import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
+import { createWriteGatedAuthoritativeBlobStore } from "../edgeone/blob-store-core";
 import { createEdgeOneQuotaService } from "../edgeone/quota-service-core";
 import type { EdgeOneRuntimeConfig } from "../edgeone/runtime-config-core";
 import { createCloudBooksService } from "./books-core";
@@ -30,7 +31,10 @@ import {
 } from "./translations-core";
 
 function createEdgeOneServices(config: EdgeOneRuntimeConfig) {
-  const blob = getAuthoritativeBlobStore(config.blobStore);
+  const blob = createWriteGatedAuthoritativeBlobStore(
+    getAuthoritativeBlobStore(config.blobStore),
+    config.freeBlobConfirmed,
+  );
   const quota = createEdgeOneQuotaService(blob);
   const now = () => new Date();
   const uuid = () => crypto.randomUUID();

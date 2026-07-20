@@ -10,6 +10,7 @@ type Resolver = (environment: Record<string, string | undefined>) =>
         storageProvider: "edgeone";
         blobStore: string;
         sessionSecret: string;
+        freeBlobConfirmed: boolean;
         freeModelConfirmed: boolean;
       };
     }
@@ -56,6 +57,7 @@ test("zero-cost production accepts only EdgeOne auth, data and Blob", () => {
       storageProvider: "edgeone",
       blobStore: "stray-pages-production",
       sessionSecret: "x".repeat(64),
+      freeBlobConfirmed: false,
       freeModelConfirmed: false,
     },
   });
@@ -139,4 +141,18 @@ test("free model calls require an explicit boolean confirmation", () => {
   const invalid = resolver()({ ...validEnvironment, EDGEONE_FREE_MODEL_CONFIRMED: "yes" });
   assert.equal(invalid.ok, false);
   if (!invalid.ok) assert.deepEqual(invalid.error.invalidKeys, ["EDGEONE_FREE_MODEL_CONFIRMED"]);
+});
+
+test("Blob writes require an explicit boolean confirmation while omitted means read-only", () => {
+  const confirmed = resolver()({ ...validEnvironment, EDGEONE_FREE_BLOB_CONFIRMED: "true" });
+  assert.equal(confirmed.ok, true);
+  if (confirmed.ok) assert.equal(confirmed.config.freeBlobConfirmed, true);
+
+  const disabled = resolver()({ ...validEnvironment, EDGEONE_FREE_BLOB_CONFIRMED: "false" });
+  assert.equal(disabled.ok, true);
+  if (disabled.ok) assert.equal(disabled.config.freeBlobConfirmed, false);
+
+  const invalid = resolver()({ ...validEnvironment, EDGEONE_FREE_BLOB_CONFIRMED: "yes" });
+  assert.equal(invalid.ok, false);
+  if (!invalid.ok) assert.deepEqual(invalid.error.invalidKeys, ["EDGEONE_FREE_BLOB_CONFIRMED"]);
 });

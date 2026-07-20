@@ -4,6 +4,7 @@ export type EdgeOneRuntimeConfig = {
   storageProvider: "edgeone";
   blobStore: string;
   sessionSecret: string;
+  freeBlobConfirmed: boolean;
   freeModelConfirmed: boolean;
 };
 
@@ -74,6 +75,7 @@ export function resolveEdgeOneRuntimeConfig(
   }
 
   const invalidKeys: string[] = [];
+  const freeBlobConfirmation = normalize(environment.EDGEONE_FREE_BLOB_CONFIRMED);
   const freeModelConfirmation = normalize(environment.EDGEONE_FREE_MODEL_CONFIRMED);
   if (values.AUTH_MODE !== "edgeone") invalidKeys.push("AUTH_MODE");
   if (values.CLOUD_DATA_PROVIDER !== "edgeone") {
@@ -94,6 +96,9 @@ export function resolveEdgeOneRuntimeConfig(
   if (freeModelConfirmation !== undefined && !["true", "false"].includes(freeModelConfirmation)) {
     invalidKeys.push("EDGEONE_FREE_MODEL_CONFIRMED");
   }
+  if (freeBlobConfirmation !== undefined && !["true", "false"].includes(freeBlobConfirmation)) {
+    invalidKeys.push("EDGEONE_FREE_BLOB_CONFIRMED");
+  }
   if (invalidKeys.length > 0) {
     return fail("ZERO_COST_CONFIG_INVALID", invalidKeys);
   }
@@ -106,6 +111,7 @@ export function resolveEdgeOneRuntimeConfig(
       storageProvider: "edgeone",
       blobStore: values.EDGEONE_BLOB_STORE!,
       sessionSecret: values.EDGEONE_SESSION_SECRET!,
+      freeBlobConfirmed: freeBlobConfirmation === "true",
       freeModelConfirmed: freeModelConfirmation === "true",
     },
   };

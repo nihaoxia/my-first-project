@@ -40,6 +40,11 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Verify EdgeOne zero-cost deployment contract
+        run: |
+          node --experimental-strip-types --test tests/edgeone-deployment-contract.test.ts tests/edgeone-smoke.test.ts tests/zero-cost-production-contract.test.ts
+          pnpm verify:zero-cost
+
       - name: Verify production deployment contracts
         run: pnpm verify:deployment
 
