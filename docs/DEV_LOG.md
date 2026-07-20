@@ -922,3 +922,7 @@
 - README 已切换为当前 EdgeOne Makers 零费用生产架构；Supabase/Prisma、COS、短信和 MCP 被明确标记为历史兼容开发路径，不再描述为当前生产要求。
 - TDD 红灯证据：通用下载测试先因模块不存在失败；笔记导出测试先因构建器和页面接线不存在失败；译本测试先因语言标签、阅读器接线和 Unicode 回退缺失失败；文档测试先因 README/路线图仍描述旧状态失败。
 - 聚焦绿灯证据：统一下载与既有学习导出 7 项通过；笔记导出、云端分页和 UI 合约 18 项通过；译本导出、语言标签和 UI 合约 22 项通过。
+- 最终完整验证：`pnpm test` 共 731 项通过、0 项失败；`pnpm lint` 和 `pnpm typecheck` 退出码均为 0。
+- `pnpm build` 完成生产编译、TypeScript 检查和 18 个静态页面生成；worktree 环境仍显示父目录与当前目录多 lockfile 的根目录推断警告，但没有构建错误。
+- `pnpm verify:zero-cost` 输出 `zero-cost production contract: ok`，没有部署、Blob 写入或模型调用。
+- `git diff --check` 无输出；凭据模式扫描没有命中 AKID 或私钥，`EDGEONE_SESSION_SECRET` 只出现在环境变量模板、运行手册、验证脚本、计划和测试中的键名或占位内容。
