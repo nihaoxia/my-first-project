@@ -879,3 +879,36 @@
 
 - 本机 Docker Desktop 引擎未运行，无法在本轮启动本地 Supabase、执行 migration reset、RLS 双用户隔离和真实 Storage 集成验证。
 - 目标生产 Supabase 项目仍需配置 URL、anon key、service role key、PostgreSQL 连接、短信供应商，并应用权威 migration。
+
+## 2026-07-20
+
+### EdgeOne Makers 零费用生产迁移
+
+- 生产方向已从历史 Vercel/Supabase/Prisma/COS/短信和腾讯云服务器方案切换为 EdgeOne Makers 零费用方案；旧方案只保留作开发兼容与历史审计，不再授权创建或使用付费资源。
+- 已完成零费用生产配置解析：生产只接受 EdgeOne Auth、EdgeOne 云端数据和 EdgeOne Blob，任意非空数据库、Supabase Service Role、COS、腾讯云、短信、Translation MCP 或旧 AI Provider 键都会 fail closed。
+- 已完成 Blob 强一致基础设施：权威读取和分页列表始终使用强一致模式，权威创建使用条件写入；账号、Session、业务数据、对象、索引事件和额度事件都使用不可变 Revision/事件。
+- 已完成项目级全局额度：Blob 应用上限 999 MiB、单上传按完整 2 MiB 预留；Makers Models 官方月额度按 500,000 Token 记录，应用硬停止为 450,000 Token/月。额度账本不可用或不一致时拒绝写入/模型调用。
+- 已完成用户名密码账号、恢复码、Session 世代、登录限频、封禁和账号隔离；生产不再依赖手机号、OTP 或短信。
+- 已完成 EdgeOne Blob 上的书籍、章节、学习记录、词汇/句子/笔记、导入回执、译本、翻译任务、租约、Checkpoint、原文对象和签名下载持久化。
+- 已完成 EdgeOne Makers Models 直接 Provider；固定免费模型和网关，免费状态未精确确认为 `true` 时零模型网络调用。
+- 已完成唯一生产 Service Factory；EdgeOne 服务图共享一个 Blob Store 和 Quota Service，不构造 Prisma、Supabase、COS、短信或 MCP 客户端。
+- 已完成 Blob 免费状态运行时门禁：`EDGEONE_FREE_BLOB_CONFIRMED` 缺省或为 `false` 时保留强一致读取/列表，在接触 SDK 前拒绝全部创建和删除；只有官方零费用状态已确认时才能精确设为 `true`。
+- 已完成仓库根目录 `edgeone.json`、安全响应头、广州 Functions、120 秒官方上限、零定时任务、严格零费用验证器、只读 Smoke、CI 门禁和唯一零费用运行手册。
+- 零费用验证器使用 TypeScript AST 递归检查真实生产依赖图，严格限制部署字段和外部依赖；黑盒夹具验证未知 Agent 字段、配置漂移、动态依赖、无分号收费导入、注释伪造 Blob 门禁和额外付费环境键都会失败。
+
+### 当前验证证据
+
+- 任务 11 提交前完整回归：`pnpm test` 共 719 项通过，0 项失败。
+- `pnpm lint`、`pnpm typecheck`、`pnpm verify:zero-cost` 和 `git diff --check` 均通过。
+- 历史 Prisma schema 在仅当前进程的本地占位 `DATABASE_URL` 下完成 `prisma format` 与 `prisma validate`；格式化没有产生 schema 差异，也没有连接或写入数据库。
+- `pnpm build` 通过，全部页面和云端 API 完成生产编译；MCP 与 SMS Hook 的历史兼容构建通过，但没有启动服务、调用模型或发送短信。
+- 敏感信息扫描只命中显式占位值、本地 PostgreSQL 示例、测试假值和禁止规则，没有命中 AKID、私钥、可用模型 Key、可用 EdgeOne Session Secret 或真实云凭据。
+- 两轮只读代码审查已关闭根配置位置、Smoke SSRF、Blob 政策失效时写入和验证器绕过问题；最终未发现 Critical 或 Important。
+- 未创建或写入任何收费资源，未向既有 COS Bucket 写入对象，未创建 KV，未启用收费模型，也未把任何 Secret 写入仓库。
+
+### 最终上线待办
+
+- 重新只读核对 EdgeOne 官方价格、套餐、配额和超额行为；只有明确为 0 元、无需付费方式且不会自动超额计费时才能继续。
+- 在满足核费门禁后创建或复用唯一免费 Makers 项目和一个 Blob Store；模型默认关闭，KV 默认不创建。
+- 部署已验证 Git SHA，运行真实免费域名 Smoke、双账号隔离、上传/下载/删除、冲突与应用额度硬停止验收。
+- 只读确认平台费用为 0，推送 GitHub `main`，核验 CI 与远端/部署 SHA 一致。
