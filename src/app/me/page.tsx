@@ -1,5 +1,6 @@
 import { BookOpen, Clock, Library, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
+import { LocalDataBackupPanel } from "@/components/account/local-data-backup-panel";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
@@ -115,6 +116,10 @@ export default async function MePage({
           </section>
         </aside>
       </div>
+
+      <section className="mt-8">
+        <LocalDataBackupPanel />
+      </section>
     </AppShell>
   );
 }
