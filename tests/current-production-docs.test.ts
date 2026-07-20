@@ -49,3 +49,19 @@ test("documents browser-local speech without claiming remote audio capabilities"
     assert.doesNotMatch(document, /已接入云端语音|已生成音频文件/u);
   }
 });
+
+test("documents encrypted same-account backup without claiming cloud sync", () => {
+  const readme = readFileSync("README.md", "utf8");
+  const roadmap = readFileSync("docs/ROADMAP.md", "utf8");
+
+  for (const document of [readme, roadmap]) {
+    assert.match(document, /浏览器本地加密备份/u);
+    assert.match(document, /口令.*无法找回/u);
+    assert.match(document, /恢复.*整体替换/u);
+    assert.match(document, /不会上传|不上传/u);
+    assert.match(document, /云端同步/u);
+    assert.match(document, /跨账号迁移/u);
+    assert.match(document, /选择性恢复|自动合并/u);
+    assert.doesNotMatch(document, /已完成云端自动备份|已支持跨账号恢复/u);
+  }
+});
