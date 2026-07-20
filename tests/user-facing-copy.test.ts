@@ -48,3 +48,13 @@ test("local translation pricing is labeled as non-billing demonstration data", (
   assert.equal(panelSource.includes("不会真实冻结、扣款或消耗生产额度"), true);
   assert.equal(panelSource.includes("演示账户余额"), true);
 });
+
+test("reader and notes advertise real text downloads without placeholder wording", () => {
+  const readerSource = readFileSync("src/components/reader/reader-workspace.tsx", "utf8");
+  const notesSource = readFileSync("src/components/study/notes-workspace.tsx", "utf8");
+  const combined = `${readerSource}\n${notesSource}`;
+
+  assert.equal(readerSource.includes("下载完整译本 TXT"), true);
+  assert.equal(notesSource.includes("导出 Markdown"), true);
+  assert.equal(combined.includes("下载尚未接入"), false);
+});

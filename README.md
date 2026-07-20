@@ -1,165 +1,139 @@
 # Stray Pages
 
-Stray Pages 是一个面向小说导入、译本创建、双语阅读和学习收藏的 Next.js 应用。当前仓库既支持无需外部服务的本地 TXT 流程，也已实现 Supabase Auth、PostgreSQL 云端数据、私有 Storage 和本地数据导入；通过独立 MCP Server 可接入 OpenAI 兼容模型完成真实逐章翻译。生产使用仍需部署 Supabase migration、配置短信供应商和密钥。
+Stray Pages 是一个面向小说导入、译本创建、双语阅读和学习收藏的 Next.js 应用。项目既提供不依赖外部服务的本地 TXT 阅读流程，也实现了基于 EdgeOne Makers 的生产账号、云端业务数据和 Blob 对象存储代码。
 
-## 国内生产架构
+当前生产原则只有一条：不产生任何费用。免费状态、计费方式或超额行为无法明确确认时，应用和部署流程都会 fail closed，不创建资源、不写 Blob、不调用模型，也不会自动切换到历史收费架构。
 
-生产目标固定为腾讯云广州：Linux 云服务器运行 Caddy、Next.js、自托管 Supabase、Translation MCP 和腾讯云短信 Hook，原文写入广州私有 COS，镜像存放在 TCR 私有仓库，模型使用腾讯混元兼容接口。生产不依赖海外托管平台登录；中国大陆公开上线前必须完成 ICP备案。详细部署、备份、恢复、验收与回滚步骤见 [`docs/PRODUCTION_RUNBOOK.md`](docs/PRODUCTION_RUNBOOK.md)。
+## 当前生产架构
 
-## 当前可用范围
+当前生产目标是 EdgeOne Makers 免费版：
 
-- 开发环境 Mock 手机号登录，体验验证码为 `123456`；
-- Supabase 手机号 OTP 登录、数据库用户资料与服务端权限校验；
-- 云端原版书、译本、翻译进度、阅读进度和学习资料的跨设备持久化；
-- 私有 Supabase Storage 原文上传、短时签名下载、删除和失败补偿清理；
-- 本地书架、译本和学习资料的一次性幂等云端导入；
-- TXT 导入、UTF-8/GB18030 解码、自动拆章和章节编辑；
-- Streamable HTTP MCP 翻译服务、逐章进度、失败暂停和手动重试；
-- 按登录账号隔离的本地书架、译本、阅读收藏和笔记；
-- 译本章节导航、词汇本、句子本和笔记本；
-- 管理页及 Prisma 数据模型的本地原型。
+- 用户使用用户名和密码注册、登录，并通过恢复码重置密码；生产不依赖手机号、验证码或短信服务。
+- EdgeOne Blob 是账号、Session、书籍、章节、学习资料、翻译记录、原文对象和额度事件的唯一权威存储。
+- 生产读取使用强一致模式，创建使用条件写入，不可变 Revision 和索引事件负责并发冲突与历史追踪。
+- Blob 免费状态未精确确认为 `true` 时，读取与列表仍可用，所有创建和删除会在访问 SDK 前拒绝。
+- Makers Models 默认关闭；免费状态未精确确认时保持空 Key，并产生零次模型网络调用。
+- KV 当前不创建，也不能用于认证、授权、所有权、额度或当前 Revision 判断。
+- 应用 Blob 硬上限为项目全局 999 MiB，单次上传最大 2 MiB；模型硬停止线为项目全局每月 450,000 Token。
 
-TXT 单文件上限为 2 MB。开发环境可选择本地模式，数据保存在浏览器当前账号作用域的 `localStorage` 中；完整 Supabase 服务端配置可用时，账号、书籍、译本、阅读进度和学习资料走云端路径。EPUB、MOBI、PDF 解析、AI 问答和语音控件尚未接入，不会伪装成可用功能。
+平台配置、免费政策复核、部署、Smoke 和费用验收见 [EdgeOne 零费用生产运行手册](docs/EDGEONE_ZERO_COST_RUNBOOK.md)。平台读取的部署配置位于仓库根目录 [edgeone.json](edgeone.json)。
+
+目前尚未执行真实 EdgeOne 生产开通；本地代码和 GitHub CI 已完成，真实平台操作按用户要求暂停。暂停期间 `EDGEONE_FREE_BLOB_CONFIRMED=false`、`EDGEONE_FREE_MODEL_CONFIRMED=false`，不会产生云端写入或模型费用。
+
+## 当前可用功能
+
+- 用户名/密码注册、登录、退出、恢复码重置、强 Session、登录限频和封禁；
+- 按账号隔离的书籍、章节、译本、翻译进度、阅读进度、词汇、句子和笔记；
+- TXT 导入，支持 UTF-8/GB18030 解码、自动拆章、章节重命名、跳过和恢复；
+- 本地书架与本地译本流程，浏览器数据按当前账号作用域隔离；
+- EdgeOne Blob 上的书籍、学习数据、导入回执、译本、任务、租约、Checkpoint 和对象存储 Repository；
+- 原文对象上传、短时签名下载、删除、冲突报告和项目级额度门禁；
+- 阅读器章节导航、阅读设置、划词收藏、句子收藏和笔记本；
+- 真实浏览器文本下载：完整译本 TXT、词汇 CSV、句子 Markdown、笔记 Markdown；
+- 免费模型状态明确确认后才可启用的 Makers Models 翻译 Provider；
+- 只读 EdgeOne Smoke、零费用依赖扫描、部署配置合约和 GitHub CI 门禁。
+
+TXT 单文件上限为 2 MiB。本地模式数据保存在浏览器当前账号作用域中，清理浏览器数据、使用无痕模式或设备损坏都可能导致本地数据丢失。
+
+## 尚未实现
+
+- EPUB、MOBI、PDF 解析；
+- 真正的 EPUB 二进制打包与下载；
+- AI 阅读问答；
+- 语音朗读；
+- 联网术语查证；
+- 真实 EdgeOne 免费项目、Blob Store、免费域名部署和双账号生产验收。
+
+这些入口不会伪装成可用功能。模型、外部供应商或云端资源涉及费用时，必须先重新核费并获得明确操作确认。
 
 ## 环境要求
 
 - Node.js 22.6 或更高版本；
-- pnpm 11.5.3；
-- 如需验证 Prisma 或运行数据库相关代码，需要 PostgreSQL/Supabase 连接信息。
+- pnpm 11.5.3。
+
+安装依赖：
+
+```powershell
+pnpm install --frozen-lockfile
+```
 
 复制环境变量模板：
 
-```bash
-cp .env.example .env.local
+```powershell
+Copy-Item .env.example .env.local
 ```
-
-开发环境至少可以使用：
-
-```dotenv
-MOCK_AUTH_ENABLED=true
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
-`MOCK_AUTH_ENABLED` 在生产环境默认关闭。未接入真实身份系统前，不应在生产环境开启 Mock 登录。
-
-## 配置 Supabase 云端模式
-
-本地 Supabase 需要 Docker Desktop 正在运行。启动并重置数据库：
-
-```bash
-pnpm supabase:start
-pnpm supabase:reset
-```
-
-将 `pnpm supabase:status` 输出的 API URL、anon key 和 service role key 写入 `.env.local`，并使用本地 PostgreSQL 连接串：
-
-```dotenv
-CLOUD_MODE=required
-AUTH_MODE=supabase
-MOCK_AUTH_ENABLED=false
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=replace-with-local-anon-key
-SUPABASE_SERVICE_ROLE_KEY=replace-with-local-service-role-key
-SUPABASE_ORIGINAL_BOOKS_BUCKET=original-books
-DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-```
-
-本地 Docker 的测试手机号为 `+8613800000000`，验证码为 `123456`。这个固定验证码只存在于 `supabase/config.toml` 的本地开发配置；生产项目必须在 Supabase 控制台配置真实短信供应商。
-
-远程部署时，先把 `supabase/migrations/202607110001_cloud_foundation.sql` 应用到目标项目，再配置同名环境变量。生产环境强制使用 Supabase Auth 和 HTTPS Supabase URL，缺失或部分配置会拒绝启动云端能力，不会静默退回本地数据。
-
-## 配置 MCP 真实翻译
-
-在 `.env.local` 中配置网站到 MCP 的连接，以及 MCP 到 OpenAI 兼容模型的连接：
-
-```dotenv
-TRANSLATION_MCP_URL=http://127.0.0.1:8787/mcp
-TRANSLATION_MCP_SECRET=replace-with-at-least-32-random-characters
-TRANSLATION_MCP_TIMEOUT_MS=180000
-MCP_TRANSLATION_PORT=8787
-MCP_TRUSTED_HOSTS=localhost,127.0.0.1,[::1]
-
-AI_BASE_URL=https://api.openai.com/v1
-AI_API_KEY=replace-with-provider-key
-AI_MODEL=replace-with-compatible-model-name
-AI_REQUEST_TIMEOUT_MS=60000
-```
-
-`TRANSLATION_MCP_SECRET` 必须至少 32 个字符，并且网站进程与 MCP 进程必须使用同一个值。所有这些变量都是服务端变量，不能添加 `NEXT_PUBLIC_` 前缀，也不能提交真实值。
-
-生产环境中的 `AI_BASE_URL` 必须使用 HTTPS；网站到同一 Compose 内 MCP 的地址固定为 `http://translation-mcp:8787/mcp`，其他生产 HTTP MCP 地址均被拒绝。开发环境只允许通过 HTTP 访问 `localhost`、`127.0.0.1` 或 `[::1]`。`MCP_TRUSTED_HOSTS` 是逗号分隔、无协议和端口的 Host 白名单。当前翻译网关没有搜索工具，因此联网术语查证仍不可用，云端 API 会明确拒绝启用请求。
-
-OpenAI 兼容厂商只需替换 `AI_BASE_URL`、`AI_API_KEY` 和 `AI_MODEL`。例如 DeepSeek 可使用其 `/v1` 兼容地址和 `deepseek-chat`，通义千问可使用百炼兼容地址和已开通的模型名；具体模型可用性以账号所在供应商为准。
-
-模型会收到用户选中的章节原文、目标语言和术语表。启用前应确认所用供应商的数据处理、保留和隐私条款。
 
 ## 本地开发
 
-```bash
-pnpm install --frozen-lockfile
-pnpm mcp:translation:dev
+无需云服务的开发模式至少需要：
+
+```dotenv
+AUTH_MODE=mock
+MOCK_AUTH_ENABLED=true
+CLOUD_MODE=optional
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-另开一个终端启动网站：
+启动网站：
 
-```bash
+```powershell
 pnpm dev
 ```
 
-MCP 健康检查地址是 `http://127.0.0.1:8787/health`。它只返回是否就绪，不返回模型地址、模型名或密钥。
+访问 `http://localhost:3000`。Mock 账号只允许在开发环境显式启用；生产环境无条件拒绝 Mock 登录。
 
-访问 `http://localhost:3000`。普通手机号会得到普通用户角色；仅开发体验中，以 `0000` 结尾的手机号会得到 Mock 管理员角色。
+## EdgeOne 配置
+
+生产变量以 [deploy/edgeone/env.example](deploy/edgeone/env.example) 为准：
+
+```dotenv
+AUTH_MODE=edgeone
+CLOUD_DATA_PROVIDER=edgeone
+CLOUD_STORAGE_PROVIDER=edgeone
+EDGEONE_BLOB_STORE=
+EDGEONE_SESSION_SECRET=
+EDGEONE_FREE_BLOB_CONFIRMED=false
+EDGEONE_FREE_MODEL_CONFIRMED=false
+MAKERS_MODELS_KEY=
+```
+
+`EDGEONE_SESSION_SECRET` 至少 64 个高熵字符，只能写入平台 Secret 设置，不能进入仓库、聊天、截图或日志。首次部署仍保持两个免费确认变量为 `false`。任何价格、支付方式、试用、自动续费、升级或提额提示都会终止操作。
 
 ## 验证命令
 
-```bash
+```powershell
 pnpm test
 pnpm lint
 pnpm typecheck
-pnpm db:validate
-pnpm mcp:translation:build
 pnpm build
+pnpm verify:zero-cost
+git diff --check
 ```
 
-Prisma 验证需要 `DATABASE_URL`。仅做 schema 检查时可以临时使用格式正确的占位 URL：
+历史 Prisma schema 校验需要格式正确的 `DATABASE_URL`，只做本地 schema 检查时可在当前进程使用占位 URL；该命令不应连接或写入远程数据库。
 
-```bash
-DATABASE_URL=postgresql://review:review@localhost:5432/stray_pages pnpm db:validate
-```
+## 数据与安全边界
 
-## 数据与安全说明
+- 生产账号和业务数据以 EdgeOne Blob 中的强一致记录为权威，不信任客户端声明的用户或角色。
+- 所有业务读取、更新、对象下载和删除同时限定当前用户与资源所有权。
+- Session 使用世代、到期时间和封禁状态校验；恢复码只存储不可逆摘要。
+- Blob 或额度账本不可读、不一致或超过硬上限时拒绝写入，不采用“先写后记账”。
+- 浏览器文本导出只使用当前页面已经取得并有权读取的数据；它不上传文件、不额外访问网络、不写 Blob。
+- 未保存的笔记草稿不会进入 Markdown 导出。
+- 模型免费状态未确认、Key 为空、额度账本不可用或达到 450,000 Token 时，模型调用在发起网络请求前停止。
+- 不向历史 COS Bucket 写入任何生产对象。
 
-- Mock 会话是开发工具，不是生产凭据；生产环境默认忽略 Mock Cookie。
-- Supabase 会话以 `auth.getUser()` 和数据库 `UserProfile` 为权威来源，不信任客户端声明的角色。
-- 云端业务查询同时限定当前用户和资源 ID；数据库表强制 RLS，Storage bucket 为私有且对象路径绑定用户与书籍。
-- 原文对象上传与数据库事务使用持久化清理意图和补偿流程，避免失败后留下无归属对象。
-- 浏览器数据按账号哈希作用域隔离，旧的无作用域数据不会自动分配给任何新登录用户。
-- 浏览器存储被禁用或空间不足时，界面会显示错误，不会声称保存成功。
-- 模型 API Key 和 MCP secret 只由服务端读取；浏览器只调用同源 `/api/translation` 路由。
-- 每章成功后才保存完整译文；任一分段失败时整章失败，不会写入半章或回退到模板译文。
-- 页面关闭时不会在后台继续。遗留的“翻译中”任务会变为需要手动重试，避免刷新后无提示地重复调用模型。
-- 本地模式数据仍可能被清理浏览器数据、无痕模式或设备故障删除；生产环境应启用已实现的 Supabase 云端模式，并配置备份与保留策略。
-- Prisma schema 与权威 Supabase migration 已覆盖核心模型和数据库安全约束；生产部署必须按运行手册应用 migration，禁止用 `prisma db push` 替代。
+## 历史兼容开发路径
 
-## 生产接入清单
+仓库仍保留 Supabase/Prisma、COS、短信 Hook、Translation MCP 和 OpenAI 兼容 Provider 的历史代码与测试，用于兼容性审计和本地开发。这些组件不是当前生产要求，也不授权创建 Supabase 收费套餐、CVM、轻量服务器、COS、短信、TCR、收费模型或其他付费资源。
 
-完整的腾讯云广州资源、自托管 Supabase、COS、短信、TCR、migration、验收和回滚步骤见
-[`docs/PRODUCTION_RUNBOOK.md`](docs/PRODUCTION_RUNBOOK.md)。
+历史架构说明见 [生产运行手册](docs/PRODUCTION_RUNBOOK.md) 和既有设计文档；它们不能覆盖当前唯一允许的 [EdgeOne 零费用生产运行手册](docs/EDGEONE_ZERO_COST_RUNBOOK.md)。
 
-正式上线前至少需要完成：
+## 项目文档
 
-1. 把权威 Supabase migration 应用到目标项目并验证 RLS、Auth trigger 和私有 Storage；
-2. 配置生产短信供应商、Supabase/PostgreSQL 密钥、备份和数据保留策略；
-3. 完成 EPUB/MOBI/PDF 解析流水线；
-4. AI 问答、联网术语查证和语音供应商；
-5. 生产后台队列、分布式幂等、余额冻结与真实结算；
-6. 可观测性、限流、审计、密钥管理和上线环境安全策略。
-
-## MCP 翻译故障排查
-
-- 创建页显示“尚未配置”：检查 `TRANSLATION_MCP_URL` 和 `TRANSLATION_MCP_SECRET` 是否同时存在。
-- 创建页显示“无法连接”：确认 `pnpm mcp:translation:dev` 正在运行，并访问 `/health`。
-- MCP Server 启动失败：检查 secret 是否达到 32 字符，以及 `AI_BASE_URL`、`AI_API_KEY`、`AI_MODEL` 是否完整。
-- 章节显示请求过多：模型供应商返回了 429；等待配额恢复后点击“重试本章”。
-- 章节显示超时：增加 `AI_REQUEST_TIMEOUT_MS` 或选择响应更快的模型；不要把超时设为超过 180000。
-- 401：网站与 MCP Server 的 `TRANSLATION_MCP_SECRET` 不一致。
+- [EdgeOne 零费用生产运行手册](docs/EDGEONE_ZERO_COST_RUNBOOK.md)
+- [开发路线图](docs/ROADMAP.md)
+- [技术栈](docs/TECH_STACK.md)
+- [开发日志](docs/DEV_LOG.md)
+- [本地导出闭环设计](docs/superpowers/specs/2026-07-20-local-export-completion-design.md)
+- [本地导出闭环实现计划](docs/superpowers/plans/2026-07-20-local-export-completion.md)
