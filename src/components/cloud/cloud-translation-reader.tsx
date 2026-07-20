@@ -18,7 +18,7 @@ export async function CloudTranslationReader({ userId, translationId, chapterId 
   const restoredSettings = isRecord(reading?.settings) ? reading.settings as Partial<ReaderSettings> : undefined;
   const restoredParagraphIndex = restoredChapterId === reading?.chapterId ? Number(reading?.paragraphIndex ?? 0) : 0;
   const chapters = translation.chapters.map((chapter) => ({ id: chapter.chapterId, title: chapter.title, wordCount: chapter.content.trim().split(/\s+/u).length, sourceParagraphs: [], translatedParagraphs: chapter.content.split(/\n\s*\n/u).map((part) => part.trim()).filter(Boolean) }));
-  const download = buildTranslatedBookTxtExport({
+  const exportInput = {
     title: translation.title,
     originalTitle: originalBook.title,
     targetLanguage: getCloudBookLanguageLabel(translation.targetLanguage),
@@ -27,8 +27,9 @@ export async function CloudTranslationReader({ userId, translationId, chapterId 
       title: chapter.title,
       paragraphs: chapter.content.split(/\n\s*\n/u).map((part) => part.trim()).filter(Boolean),
     })),
-  });
-  return <ReaderWorkspace title={translation.title} translationId={translation.id} readerView={buildReaderView({ chapters, currentChapterId: restoredChapterId, settings: restoredSettings })} download={download} persistence="cloud" cloudSource={{ originalBookId: translation.originalBookId, translatedBookId: translation.id }} initialParagraphIndex={restoredParagraphIndex} initialReadingVersion={Number(reading?.version ?? 0)} />;
+  };
+  const download = buildTranslatedBookTxtExport(exportInput);
+  return <ReaderWorkspace title={translation.title} translationId={translation.id} readerView={buildReaderView({ chapters, currentChapterId: restoredChapterId, settings: restoredSettings })} download={download} epubDownloadInput={exportInput} persistence="cloud" cloudSource={{ originalBookId: translation.originalBookId, translatedBookId: translation.id }} initialParagraphIndex={restoredParagraphIndex} initialReadingVersion={Number(reading?.version ?? 0)} />;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }

@@ -87,7 +87,7 @@ export function LocalTranslationReader({
   }
 
   const readableChapters = getReadableStoredLocalTranslationChapters(state.translation);
-  const download = buildTranslatedBookTxtExport({
+  const exportInput = {
     title: state.translation.title,
     originalTitle: state.translation.originalTitle,
     targetLanguage: state.translation.targetLanguage,
@@ -96,13 +96,15 @@ export function LocalTranslationReader({
       title: chapter.title,
       paragraphs: chapter.translatedParagraphs,
     })),
-  });
+  };
+  const download = buildTranslatedBookTxtExport(exportInput);
 
   return (
     <ReaderWorkspace
       title={state.translation.title}
       readerView={state.readerView}
       download={download}
+      epubDownloadInput={exportInput}
       translationId={state.translation.id}
     />
   );

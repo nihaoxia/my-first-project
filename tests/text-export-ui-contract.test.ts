@@ -12,6 +12,8 @@ test("reader exposes one complete translation text download", () => {
   assert.match(reader, /download\?: TextExportResult/);
   assert.match(reader, /TextDownloadButton/);
   assert.match(reader, /下载完整译本 TXT/);
+  assert.match(reader, /epubDownloadInput\?: TranslatedBookExportInput/);
+  assert.match(reader, /EpubDownloadButton/);
 });
 
 test("local and cloud readers build downloads from their authoritative readable chapters", () => {
@@ -21,11 +23,13 @@ test("local and cloud readers build downloads from their authoritative readable 
   assert.match(local, /getReadableStoredLocalTranslationChapters/);
   assert.match(local, /buildTranslatedBookTxtExport/);
   assert.match(local, /download=\{download\}/);
+  assert.match(local, /epubDownloadInput=\{exportInput\}/);
 
   assert.match(cloud, /getCloudBooksService\(\)\.get/);
   assert.match(cloud, /buildTranslatedBookTxtExport/);
   assert.match(cloud, /getCloudBookLanguageLabel/);
   assert.match(cloud, /download=\{download\}/);
+  assert.match(cloud, /epubDownloadInput=\{exportInput\}/);
 });
 
 test("text downloads remain local browser work and notes exclude unsaved drafts", () => {
