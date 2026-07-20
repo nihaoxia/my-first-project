@@ -14,11 +14,15 @@ export class EpubExportError extends Error {
   constructor(code: EpubExportErrorCode) { super(code); this.name = "EpubExportError"; this.code = code; }
 }
 export type EpubExportResult = { fileName: string; mimeType: "application/epub+zip"; bytes: Uint8Array };
+type EpubExportRuntime = {
+  now(): Date;
+  packageFiles?(files: Zippable): Promise<Uint8Array>;
+};
 
 const policy = { maxChapters: 2_000, maxTitle: 500, maxChapterTitle: 200, maxParagraphs: 20_000, maxChapterBytes: 2 * 1024 * 1024, maxBookBytes: 16 * 1024 * 1024, maxPackageBytes: 32 * 1024 * 1024 } as const;
 const languageTags: Record<string, string> = { 中文: "zh-CN", 英文: "en", 日文: "ja", 韩文: "ko", 俄语: "ru", 德语: "de", 西班牙语: "es", 法语: "fr" };
 
-export async function buildTranslatedBookEpubExport(input: TranslatedBookExportInput, runtime: { now(): Date } = { now: () => new Date() }): Promise<EpubExportResult> {
+export async function buildTranslatedBookEpubExport(input: TranslatedBookExportInput, runtime: EpubExportRuntime = { now: () => new Date() }): Promise<EpubExportResult> {
   const chapters = validateAndOrder(input);
   const title = input.title.trim() || "未命名译本";
   validateText(title, policy.maxTitle);
@@ -27,7 +31,7 @@ export async function buildTranslatedBookEpubExport(input: TranslatedBookExportI
   const modified = runtime.now().toISOString().replace(/\.\d{3}Z$/u, "Z");
   const files = buildFiles({ ...input, title }, chapters, language, modified);
   let bytes: Uint8Array;
-  try { bytes = await zipFiles(files); }
+  try { bytes = await (runtime.packageFiles ?? zipFiles)(files); }
   catch { throw new EpubExportError("EPUB_EXPORT_PACKAGING_FAILED"); }
   if (bytes.byteLength > policy.maxPackageBytes) throw new EpubExportError("EPUB_EXPORT_TOO_LARGE");
   try { inspectEpubArchive(bytes); }

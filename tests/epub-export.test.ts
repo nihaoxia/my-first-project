@@ -64,3 +64,68 @@ test("fails closed for empty, duplicate, unknown-order, and invalid XML text", a
     );
   }
 });
+
+test("fails closed when chapter, paragraph, chapter-byte, or book-byte budgets are exceeded", async () => {
+  const tooManyChapters = Array.from({ length: 2_001 }, (_, index) => ({
+    id: `chapter-${index}`,
+    title: `Chapter ${index}`,
+    paragraphs: ["text"],
+  }));
+  await assert.rejects(
+    buildTranslatedBookEpubExport({ ...input, chapters: tooManyChapters }),
+    hasCode("EPUB_EXPORT_TOO_LARGE"),
+  );
+
+  await assert.rejects(
+    buildTranslatedBookEpubExport({
+      ...input,
+      chapters: [{ id: "one", title: "One", paragraphs: Array(20_001).fill("") }],
+    }),
+    hasCode("EPUB_EXPORT_TOO_LARGE"),
+  );
+
+  await assert.rejects(
+    buildTranslatedBookEpubExport({
+      ...input,
+      chapters: [{ id: "one", title: "One", paragraphs: ["x".repeat(2 * 1024 * 1024)] }],
+    }),
+    hasCode("EPUB_EXPORT_TOO_LARGE"),
+  );
+
+  const largeChapterText = "x".repeat(1_900_000);
+  await assert.rejects(
+    buildTranslatedBookEpubExport({
+      ...input,
+      chapters: Array.from({ length: 9 }, (_, index) => ({
+        id: `chapter-${index}`,
+        title: `Chapter ${index}`,
+        paragraphs: [largeChapterText],
+      })),
+    }),
+    hasCode("EPUB_EXPORT_TOO_LARGE"),
+  );
+});
+
+test("maps injected packaging failures and oversized final archives to stable errors", async () => {
+  await assert.rejects(
+    buildTranslatedBookEpubExport(input, {
+      now: () => new Date("2026-07-20T12:34:56Z"),
+      packageFiles: async () => {
+        throw new Error("zip failed");
+      },
+    }),
+    hasCode("EPUB_EXPORT_PACKAGING_FAILED"),
+  );
+
+  await assert.rejects(
+    buildTranslatedBookEpubExport(input, {
+      now: () => new Date("2026-07-20T12:34:56Z"),
+      packageFiles: async () => new Uint8Array(32 * 1024 * 1024 + 1),
+    }),
+    hasCode("EPUB_EXPORT_TOO_LARGE"),
+  );
+});
+
+function hasCode(code: EpubExportError["code"]) {
+  return (error: unknown) => error instanceof EpubExportError && error.code === code;
+}
