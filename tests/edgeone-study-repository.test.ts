@@ -24,6 +24,29 @@ function memoryBlob() {
   });
 }
 
+function failFirstImportIndexWriteBlob() {
+  const data = new Map<string, unknown>();
+  let failIndexWrite = true;
+  const blob = createAuthoritativeBlobStore({
+    async set(key, value, options) {
+      if (options?.onlyIfNew && data.has(key)) throw Object.assign(new Error("exists"), { code: "PreconditionFailed" });
+      data.set(key, value);
+    },
+    async setJSON(key, value, options) {
+      if (options?.onlyIfNew && data.has(key)) throw Object.assign(new Error("exists"), { code: "PreconditionFailed" });
+      if (failIndexWrite && key.startsWith(`study-index/${USER}/vocabulary/events/`)) {
+        failIndexWrite = false;
+        throw new Error("injected index failure");
+      }
+      data.set(key, structuredClone(value));
+    },
+    async get(key) { return data.has(key) ? structuredClone(data.get(key)) : null; },
+    async getWithHeaders() { return null; }, async delete(key) { data.delete(key); },
+    async list(options) { return { blobs: [...data.keys()].filter((key) => key.startsWith(options.prefix ?? "")).sort().map((key) => ({ key, etag: key })) }; },
+  });
+  return { blob, data };
+}
+
 function harness() {
   let id = 1;
   const repository = api().createEdgeOneStudyRepository({
@@ -54,6 +77,39 @@ test("study revisions support owner-scoped create, pagination, update and delete
   assert.deepEqual((await repo.list(USER, "vocabulary", undefined, { limit: 10 })).items, []);
 });
 
+test("import target creation is conditionally idempotent for one stable record id", async () => {
+  const repo = harness();
+  const [left, right] = await Promise.all([
+    repo.ensureImportTarget(vocabulary()),
+    repo.ensureImportTarget(vocabulary()),
+  ]);
+  assert.deepEqual([left.created, right.created].sort(), [false, true]);
+  assert.equal(left.record.id, ITEM);
+  assert.equal(right.record.id, ITEM);
+  assert.equal((await repo.list(USER, "vocabulary", undefined, { limit: 10 })).items.length, 1);
+});
+
+test("a failed import index write remains incomplete until retry repairs the stable index event", async () => {
+  const { blob, data } = failFirstImportIndexWriteBlob();
+  const repo = api().createEdgeOneStudyRepository({
+    blob, now: () => new Date("2026-07-12T00:00:00.000Z"),
+    uuid: () => "50000000-0000-4000-8000-000000000001",
+    async resolveOriginalSource() { return null; },
+    async resolveTranslatedSource() { return null; },
+  });
+
+  await assert.rejects(() => repo.ensureImportTarget(vocabulary()), /BLOB_WRITE_FAILED/);
+  assert.equal(await repo.hasImportTarget(USER, "vocabulary", ITEM), false);
+  assert.equal((await repo.list(USER, "vocabulary", undefined, { limit: 10 })).items.length, 0);
+
+  const repaired = await repo.ensureImportTarget(vocabulary());
+  assert.equal(repaired.created, false);
+  assert.equal(await repo.hasImportTarget(USER, "vocabulary", ITEM), true);
+  assert.equal((await repo.list(USER, "vocabulary", undefined, { limit: 10 })).items.length, 1);
+  assert.equal([...data.keys()].filter((key) => key.includes("/revisions/")).length, 1);
+  assert.equal([...data.keys()].filter((key) => key.startsWith(`study-index/${USER}/vocabulary/events/`)).length, 1);
+});
+
 test("reading upsert uses a stable resource and optimistic version", async () => {
   const repo = harness();
   const base = { id: ITEM, userId: USER, kind: "reading" as const, originalBookId: BOOK,
@@ -79,4 +135,5 @@ test("production study factory selects EdgeOne before Prisma", async () => {
   assert.ok(source.indexOf('CLOUD_DATA_PROVIDER === "edgeone"') < source.indexOf("createPrismaCloudStudyRepository()"));
   assert.match(source, /getCloudServices\(\)\.study/);
   assert.match(factory, /createEdgeOneStudyRepository/);
+  assert.match(factory, /ensureImportTarget/);
 });

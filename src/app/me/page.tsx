@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
 import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
+import { getCloudImportSessionBinding } from "@/lib/cloud/import-session-binding";
 import { balanceRecords, myPageSummary, translationTasks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
@@ -21,6 +22,7 @@ export default async function MePage({
   searchParams?: Promise<{ authError?: string }>;
 }) {
   const persistence = resolveCloudPersistenceModeFromEnvironment(process.env);
+  const importBinding = persistence === "cloud" ? await getCloudImportSessionBinding() : null;
   const params = await searchParams;
   const authError = params?.authError === "SIGN_OUT_FAILED"
     ? "退出登录失败，你仍处于登录状态。请稍后重试。"
@@ -120,9 +122,9 @@ export default async function MePage({
         </aside>
       </div>
 
-      {persistence === "cloud" ? (
+      {persistence === "cloud" && importBinding ? (
         <section className="mt-8">
-          <CloudLocalImportPanel />
+          <CloudLocalImportPanel sessionBinding={importBinding} />
         </section>
       ) : null}
 

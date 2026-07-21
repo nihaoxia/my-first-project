@@ -1,6 +1,7 @@
 import "server-only";
 
-import { randomBytes } from "@noble/hashes/utils.js";
+import { sha256 } from "@noble/hashes/sha2.js";
+import { bytesToHex, randomBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 
 import { createEdgeOneAccountService } from "../auth/edgeone-account-service-core";
 import { getAuthoritativeBlobStore } from "../edgeone/blob-store";
@@ -12,7 +13,7 @@ import { createEdgeOneBooksRepository } from "./edgeone-books-repository";
 import { createEdgeOneImportRepository } from "./edgeone-import-repository";
 import { createEdgeOneModelsTranslationProvider } from "./edgeone-models-translation-provider";
 import { createEdgeOneStorageProvider } from "./edgeone-storage-provider";
-import { createEdgeOneStudyRepository } from "./edgeone-study-repository";
+import { createEdgeOneStudyRepository, deriveEdgeOneReadingId } from "./edgeone-study-repository";
 import {
   createFreeQuotaTranslationProvider,
   EDGEONE_MODEL_QUOTA_LEDGER_ID,
@@ -129,11 +130,11 @@ function createEdgeOneServices(config: EdgeOneRuntimeConfig) {
   const importsRepository = createEdgeOneImportRepository({
     blob,
     uuid,
-    createTarget: (item) => createImportTarget(item, {
+    now,
+    targetExists: (userId, kind, targetId) => studyRepository.hasImportTarget(userId, kind, targetId),
+    prepareTarget: (item, target) => prepareImportTarget(item, target, {
       books: booksRepository,
       study: studyRepository,
-      now,
-      uuid,
     }),
   });
 
@@ -171,27 +172,27 @@ function createEdgeOneServices(config: EdgeOneRuntimeConfig) {
   };
 }
 
-async function createImportTarget(
+async function prepareImportTarget(
   item: PreparedImportItem,
+  target: { createdAt: Date },
   input: {
     books: ReturnType<typeof createEdgeOneBooksRepository>;
     study: ReturnType<typeof createEdgeOneStudyRepository>;
-    now: () => Date;
-    uuid: () => string;
   },
 ): Promise<
-  { ok: true; targetId: string } |
+  { ok: true; targetId: string; ensure(): Promise<{ ok: true; targetId: string; created: boolean }> } |
   { ok: false; code: "SOURCE_NOT_FOUND" | "INVALID_TARGET" | "WRITE_FAILED" }
 > {
-  const timestamp = input.now();
+  const timestamp = target.createdAt;
+  const importTargetId = stableImportTargetId(item);
   if (item.kind === "note") {
-    const row = await input.study.create({
-      id: input.uuid(), userId: item.userId, kind: "note",
+    const record = {
+      id: importTargetId, userId: item.userId, kind: "note" as const,
       title: item.payload.title, content: item.payload.content,
       targetType: "FREEFORM", originalBookId: null, translatedBookId: null,
       chapterId: null, targetLabel: "", createdAt: timestamp, updatedAt: timestamp,
-    });
-    return { ok: true, targetId: row.id };
+    };
+    return preparedStudyTarget(record, input.study);
   }
   if (!item.source || item.source.translationTitle) {
     return { ok: false, code: "SOURCE_NOT_FOUND" };
@@ -212,23 +213,43 @@ async function createImportTarget(
     if ((await input.study.list(item.userId, "reading", book.id, { limit: 1 })).items.length) {
       return { ok: false, code: "INVALID_TARGET" };
     }
-    const row = await input.study.upsertReading({
-      id: input.uuid(), userId: item.userId, kind: "reading",
+    const base = {
+      id: importTargetId, userId: item.userId, kind: "reading" as const,
       originalBookId: book.id, translatedBookId: null,
       chapterId: chapter?.id ?? null,
       paragraphIndex: item.payload.paragraphIndex, settings: item.payload.settings,
-      expectedVersion: 0, bookTitle: book.title,
-      chapterTitle: chapter?.title ?? null, updatedAt: timestamp,
-    });
-    return row ? { ok: true, targetId: row.id } : { ok: false, code: "INVALID_TARGET" };
+      version: 0, bookTitle: book.title,
+      chapterTitle: chapter?.title ?? null, createdAt: timestamp, updatedAt: timestamp,
+    };
+    return preparedStudyTarget({ ...base, id: deriveEdgeOneReadingId(item.userId, base) }, input.study);
   }
-  const row = await input.study.create({
-    id: input.uuid(), userId: item.userId, kind: item.kind,
+  const record = {
+    id: importTargetId, userId: item.userId, kind: item.kind,
     originalBookId: book.id, chapterId: chapter?.id ?? null,
     bookTitle: book.title, chapterTitle: chapter?.title ?? null,
     ...item.payload, createdAt: timestamp, updatedAt: timestamp,
-  });
-  return { ok: true, targetId: row.id };
+  };
+  return preparedStudyTarget(record, input.study);
+}
+
+function preparedStudyTarget(
+  record: Parameters<ReturnType<typeof createEdgeOneStudyRepository>["ensureImportTarget"]>[0],
+  study: ReturnType<typeof createEdgeOneStudyRepository>,
+) {
+  return {
+    ok: true as const,
+    targetId: record.id,
+    async ensure() {
+      const result = await study.ensureImportTarget(record);
+      return { ok: true as const, targetId: result.record.id, created: result.created };
+    },
+  };
+}
+
+function stableImportTargetId(item: PreparedImportItem): string {
+  const hex = bytesToHex(sha256(utf8ToBytes(`import-target\u0000${item.userId}\u0000${item.kind}\u0000${item.sourceId}`)));
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function asCloudBookLanguage(value: string): CloudBookLanguage {

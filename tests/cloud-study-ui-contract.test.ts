@@ -99,6 +99,7 @@ test("local import rechecks snapshots before the first network request", () => {
   assert.ok(recheck >= 0 && fetchCall > recheck);
   assert.match(text, /SOURCE_DATA_CHANGED/);
   assert.match(text, /readCurrentScopeFingerprint/);
+  assert.match(text, /"X-Stray-Pages-Import-Binding": sessionBinding/);
 });
 
 test("completion markers do not permanently block future inspections", () => {
@@ -115,9 +116,10 @@ test("mounts local-to-cloud migration only from the authenticated cloud account 
 
   assert.match(mePage, /resolveCloudPersistenceModeFromEnvironment\(process\.env\)/);
   assert.match(mePage, /persistence === "cloud"/);
-  assert.match(mePage, /<CloudLocalImportPanel\s*\/>/);
+  assert.match(mePage, /getCloudImportSessionBinding/);
+  assert.match(mePage, /<CloudLocalImportPanel sessionBinding=\{importBinding\}\s*\/>/);
   assert.match(mePage, /<AppShell requireAuth>/);
   assert.doesNotMatch(mePage, /<CloudLocalImportPanel[^>]*(userId|legacyMockUserId)/);
   assert.doesNotMatch(notesPage, /CloudLocalImportPanel/);
-  assert.match(panel, /export function CloudLocalImportPanel\(\)/);
+  assert.match(panel, /export function CloudLocalImportPanel\(\{ sessionBinding \}/);
 });

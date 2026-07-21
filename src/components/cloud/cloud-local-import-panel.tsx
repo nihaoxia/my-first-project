@@ -74,7 +74,7 @@ type PreviewCandidate = {
 };
 type Phase = "idle" | "inspecting" | "previewing" | "importing";
 
-export function CloudLocalImportPanel() {
+export function CloudLocalImportPanel({ sessionBinding }: { sessionBinding: string }) {
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [selectedOrigins, setSelectedOrigins] = useState<LocalStudyImportSourceOrigin[]>([]);
   const [selectedKinds, setSelectedKinds] = useState<LocalStudyImportKind[]>([
@@ -213,7 +213,10 @@ export function CloudLocalImportPanel() {
           try {
             response = await fetch("/api/cloud/import", {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: {
+                "Content-Type": "application/json",
+                "X-Stray-Pages-Import-Binding": sessionBinding,
+              },
               body: JSON.stringify(chunk),
             });
           } catch {
@@ -548,6 +551,7 @@ function getReadErrorMessage(result: Extract<ReturnType<typeof readImportSources
 function getImportFailureMessage(reason: string, failedChunk: number, completedChunks: number) {
   if (reason === "NETWORK_ERROR") return `第 ${failedChunk + 1} 批遇到网络错误；此前已完成 ${completedChunks} 批，可安全重试。`;
   if (reason === "AUTH_REQUIRED") return "登录已失效，导入未完成。请重新登录后再检查。";
+  if (reason === "SESSION_CHANGED") return "当前登录账号已经变化，导入已安全停止。请刷新页面并重新检查。";
   if (reason === "CLOUD_NOT_CONFIGURED" || reason === "CLOUD_CONFIG_INVALID" || reason === "BLOB_WRITE_DISABLED") return "云端写入尚未通过零费用配置，导入已安全停止。";
   if (reason === "INVALID_RESPONSE") return `第 ${failedChunk + 1} 批返回了无效结果；此前已完成 ${completedChunks} 批，可安全重试。`;
   if (reason === "PARTIAL") return `第 ${failedChunk + 1} 批包含冲突或失败记录；此前已完成 ${completedChunks} 批。本地副本未删除。`;

@@ -2,13 +2,22 @@ import { readRequestBytesWithLimit } from "./books-route-core.ts";
 
 type Session = { userId: string; role: "USER" | "ADMIN" | "BANNED" } | null;
 export const MAX_IMPORT_BODY_BYTES = 2 * 1024 * 1024;
-export type CloudImportRouteDependencies = { getSession(): Promise<Session>; service: { import(userId: string, body: unknown): Promise<unknown> } };
+export const CLOUD_IMPORT_SESSION_BINDING_HEADER = "x-stray-pages-import-binding";
+export type CloudImportRouteDependencies = {
+  getSession(): Promise<Session>;
+  verifySessionBinding(userId: string, token: string): Promise<boolean> | boolean;
+  service: { import(userId: string, body: unknown): Promise<unknown> };
+};
 
 export async function handleCloudImportRoute(request: Request, dependencies: CloudImportRouteDependencies) {
   let session: Session;
   try { session = await dependencies.getSession(); } catch (cause) { return mapped(cause); }
   if (!session || session.role === "BANNED") return error("AUTH_REQUIRED", 401, "Authentication is required.");
   if (request.method !== "POST") return error("METHOD_NOT_ALLOWED", 405, "Method not allowed.");
+  const binding = request.headers.get(CLOUD_IMPORT_SESSION_BINDING_HEADER) ?? "";
+  let bindingValid = false;
+  try { bindingValid = Boolean(binding && await dependencies.verifySessionBinding(session.userId, binding)); } catch { bindingValid = false; }
+  if (!bindingValid) return error("SESSION_CHANGED", 409, "The signed-in account changed. Inspect local data again.");
   if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return error("UNSUPPORTED_MEDIA_TYPE", 415, "JSON is required.");
   try {
     const bytes = await readRequestBytesWithLimit(request, MAX_IMPORT_BODY_BYTES);

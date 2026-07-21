@@ -30,12 +30,27 @@ function hydrate(value: StoredStudy): CloudStudyRecord {
   return output as CloudStudyRecord;
 }
 
-function stableReadingId(userId: string, record: CloudStudyRecord): string {
+export function deriveEdgeOneReadingId(userId: string, record: CloudStudyRecord): string {
   const source = (record.originalBookId ?? record.translatedBookId) as string;
   const bytes = sha256(utf8ToBytes(`${userId}\u0000${record.originalBookId ? "original" : "translated"}\u0000${source}`));
   const hex = bytesToHex(bytes);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
+
+function stableImportArtifactId(value: string): string {
+  const hex = bytesToHex(sha256(utf8ToBytes(value)));
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+function sameJson(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+export type EdgeOneStudyRepository = CloudStudyRepository & {
+  ensureImportTarget(record: CloudStudyRecord): Promise<{ record: CloudStudyRecord; created: boolean }>;
+  hasImportTarget(userId: string, kind: CloudStudyKind, id: string): Promise<boolean>;
+};
 
 export function createEdgeOneStudyRepository(input: {
   blob: AuthoritativeBlobStore;
@@ -43,7 +58,7 @@ export function createEdgeOneStudyRepository(input: {
   uuid: () => string;
   resolveOriginalSource(userId: string, originalBookId: string, chapterId: string | null): Promise<OriginalSource | null>;
   resolveTranslatedSource(userId: string, translatedBookId: string, chapterId: string | null): Promise<TranslatedSource | null>;
-}): CloudStudyRepository {
+}): EdgeOneStudyRepository {
   const prefix = (userId: string, kind: CloudStudyKind, id: string) => `study/${userId}/${kind}/${id}/revisions/`;
   const indexPrefix = (userId: string, kind: CloudStudyKind) => `study-index/${userId}/${kind}/events/`;
 
@@ -74,6 +89,47 @@ export function createEdgeOneStudyRepository(input: {
     return hydrate(revision.value);
   }
 
+  async function ensureImportTarget(record: CloudStudyRecord) {
+    const artifact = `${record.userId}\u0000${record.kind}\u0000${record.id}`;
+    const createdAt = record.updatedAt.toISOString();
+    if (Number.isNaN(record.updatedAt.getTime()) || (record.createdAt && Number.isNaN(record.createdAt.getTime()))) throw new EdgeOneStudyRepositoryError();
+    const revision: Revision<StoredStudy> = {
+      id: stableImportArtifactId(`${artifact}\u0000revision`),
+      parentIds: [],
+      operationId: stableImportArtifactId(`${artifact}\u0000operation`),
+      createdAt,
+      deleted: false,
+      value: store(record),
+    };
+    const revisionKey = `${prefix(record.userId, record.kind, record.id)}${revision.id}.json`;
+    let created = false;
+    try {
+      await input.blob.createJSON(revisionKey, revision);
+      created = true;
+    } catch (error) {
+      if ((error as { code?: string }).code !== "BLOB_ALREADY_EXISTS") throw error;
+      const existing = await input.blob.getJSON<unknown>(revisionKey);
+      if (!sameJson(existing, revision)) throw new EdgeOneStudyRepositoryError();
+    }
+
+    const event: IndexEvent = {
+      id: stableImportArtifactId(`${artifact}\u0000index`),
+      resourceId: record.id,
+      action: "upsert",
+      revisionId: revision.id,
+      createdAt,
+    };
+    const eventKey = `${indexPrefix(record.userId, record.kind)}${event.id}.json`;
+    try {
+      await input.blob.createJSON(eventKey, event);
+    } catch (error) {
+      if ((error as { code?: string }).code !== "BLOB_ALREADY_EXISTS") throw error;
+      const existing = await input.blob.getJSON<unknown>(eventKey);
+      if (!sameJson(existing, event)) throw new EdgeOneStudyRepositoryError();
+    }
+    return { record: hydrate(revision.value), created };
+  }
+
   return {
     resolveOriginalSource: input.resolveOriginalSource,
     resolveTranslatedSource: input.resolveTranslatedSource,
@@ -99,6 +155,19 @@ export function createEdgeOneStudyRepository(input: {
       if (existing && !existing.deleted) throw new EdgeOneStudyRepositoryError();
       return write(record, null);
     },
+    ensureImportTarget,
+    async hasImportTarget(userId: string, kind: CloudStudyKind, id: string) {
+      const artifact = `${userId}\u0000${kind}\u0000${id}`;
+      const revisionId = stableImportArtifactId(`${artifact}\u0000revision`);
+      const eventId = stableImportArtifactId(`${artifact}\u0000index`);
+      const revision = await input.blob.getJSON<Revision<StoredStudy>>(`${prefix(userId, kind, id)}${revisionId}.json`);
+      const event = await input.blob.getJSON<IndexEvent>(`${indexPrefix(userId, kind)}${eventId}.json`);
+      if (!revision || !event) return false;
+      return revision.id === revisionId && revision.parentIds.length === 0 && !revision.deleted &&
+        revision.value.userId === userId && revision.value.kind === kind && revision.value.id === id &&
+        event.id === eventId && event.resourceId === id && event.action === "upsert" &&
+        event.revisionId === revisionId && event.createdAt === revision.createdAt;
+    },
     async update(userId, id, data) {
       const kind = data.kind as CloudStudyKind;
       const parent = await current(userId, kind, id);
@@ -113,7 +182,7 @@ export function createEdgeOneStudyRepository(input: {
       return true;
     },
     async upsertReading(record) {
-      const id = stableReadingId(record.userId, record);
+      const id = deriveEdgeOneReadingId(record.userId, record);
       const parent = await current(record.userId, "reading", id);
       const expected = record.expectedVersion as number;
       if (!parent) {

@@ -80,11 +80,11 @@ async function parseManifest(userId: string, raw: unknown) {
   const items: PreparedImportItem[] = [];
   let totalBytes = 0;
   for (const rawItem of raw.items) {
-    const parsed = parseItem(rawItem);
+    const parsed = parseImportItem(rawItem);
     const identity = `${parsed.kind}\u0000${parsed.sourceId}`;
     if (seen.has(identity)) invalid();
     seen.add(identity);
-    const canonical = stableJson({ kind: parsed.kind, sourceVersion: parsed.sourceVersion, source: parsed.source, payload: parsed.payload });
+    const canonical = canonicalImportItem(parsed);
     totalBytes += utf8(canonical);
     if (totalBytes > MAX_IMPORT_CANONICAL_BYTES) invalid();
     items.push({ userId, ...parsed, payloadHash: await sha256(canonical) });
@@ -92,13 +92,24 @@ async function parseManifest(userId: string, raw: unknown) {
   return { manifestId: raw.manifestId, items };
 }
 
-function parseItem(raw: unknown): Omit<PreparedImportItem, "userId" | "payloadHash"> {
+export function parseImportItem(raw: unknown): Omit<PreparedImportItem, "userId" | "payloadHash"> {
   if (!isRecord(raw)) invalid();
   exact(raw, ["sourceId", "sourceVersion", "kind", "source", "payload"]);
   if (typeof raw.sourceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(raw.sourceId) || !Number.isSafeInteger(raw.sourceVersion) || (raw.sourceVersion as number) < 1 || (raw.sourceVersion as number) > 1_000_000 || !isKind(raw.kind)) invalid();
   const source = parseSource(raw.source, raw.kind);
   const payload = parsePayload(raw.kind, raw.payload);
   return { sourceId: raw.sourceId, sourceVersion: raw.sourceVersion as number, kind: raw.kind, source, payload };
+}
+
+export function canonicalImportItem(
+  item: Pick<PreparedImportItem, "kind" | "sourceVersion" | "source" | "payload">,
+): string {
+  return stableJson({
+    kind: item.kind,
+    sourceVersion: item.sourceVersion,
+    source: item.source,
+    payload: item.payload,
+  });
 }
 
 function parseSource(raw: unknown, kind: ImportKind) {
