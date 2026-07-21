@@ -5,7 +5,10 @@ import {
   buildLocalBackupPayload,
   localBackupStorageEntries,
 } from "../src/lib/backup/local-backup-core.ts";
-import { restoreLocalBackup } from "../src/lib/backup/local-backup-restore.ts";
+import {
+  allLocalBackupRestoreGroups,
+  restoreLocalBackup,
+} from "../src/lib/backup/local-backup-restore.ts";
 import { buildScopedLocalStorageKey } from "../src/lib/storage/local-storage-scope.ts";
 import type { LocalStorageAdapter } from "../src/lib/storage/safe-local-storage.ts";
 import { buildBackupRawValues } from "./local-backup-fixture.ts";
@@ -131,9 +134,34 @@ test("rejects any account scope change before reading or writing storage", () =>
     const harness = createStorageHarness(buildCurrentValues("scope"));
 
     assert.deepEqual(
-      restoreLocalBackup({ ...restoreInput(harness.storage), ...overrides }),
+      restoreLocalBackup({
+        ...restoreInput(harness.storage),
+        selectedGroups: [],
+        ...overrides,
+      }),
       { ok: false, code: "SCOPE_MISMATCH" },
     );
+    assert.deepEqual(harness.events, []);
+  }
+});
+
+test("rejects empty, duplicate, unknown, and non-array restore selections without storage access", () => {
+  const invalidSelections: unknown[] = [
+    [],
+    ["notes", "notes"],
+    ["unknown"],
+    "notes",
+    null,
+  ];
+
+  for (const selectedGroups of invalidSelections) {
+    const harness = createStorageHarness(buildCurrentValues("invalid-selection"));
+    const result = restoreLocalBackup({
+      ...restoreInput(harness.storage),
+      selectedGroups: selectedGroups as typeof allLocalBackupRestoreGroups,
+    });
+
+    assert.deepEqual(result, { ok: false, code: "INVALID_SELECTION" });
     assert.deepEqual(harness.events, []);
   }
 });
@@ -149,6 +177,7 @@ function restoreInput(storage: LocalStorageAdapter, payload = buildPayload()) {
   return {
     storage,
     payload,
+    selectedGroups: allLocalBackupRestoreGroups,
     sourceScopeFingerprint: scope,
     inspectedScopeFingerprint: scope,
     currentScopeFingerprint: scope,

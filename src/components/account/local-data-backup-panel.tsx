@@ -26,7 +26,10 @@ import {
   type LocalBackupEncryptionResult,
   type LocalBackupRestoreCandidate,
 } from "@/lib/backup/local-backup-crypto";
-import { restoreLocalBackup } from "@/lib/backup/local-backup-restore";
+import {
+  allLocalBackupRestoreGroups,
+  restoreLocalBackup,
+} from "@/lib/backup/local-backup-restore";
 import {
   buildScopedLocalStorageKey,
   localStorageScopeAttribute,
@@ -228,6 +231,7 @@ export function LocalDataBackupPanel() {
       const result = restoreLocalBackup({
         storage: storage.storage,
         payload: candidate.payload,
+        selectedGroups: allLocalBackupRestoreGroups,
         sourceScopeFingerprint: candidate.sourceScopeFingerprint,
         inspectedScopeFingerprint: candidate.inspectedScopeFingerprint,
         currentScopeFingerprint: scope,

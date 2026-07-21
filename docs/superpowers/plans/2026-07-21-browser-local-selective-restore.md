@@ -72,6 +72,7 @@
 
 - 修改：`tests/local-backup-restore.test.ts`
 - 修改：`src/lib/backup/local-backup-restore.ts`
+- 修改：`src/components/account/local-data-backup-panel.tsx`（只迁移现有调用为显式全选）
 
 - [ ] **步骤 1：让既有恢复夹具显式传入全组选项**
 
@@ -188,7 +189,17 @@ function validateSelectedRestoreGroups(
 
 任务 1 暂时保留现有六键全量 `targets`；`selected.groups` 的过滤在任务 2 测试红灯后接入。不要把选择持久化。
 
-- [ ] **步骤 6：运行聚焦测试确认绿灯**
+- [ ] **步骤 6：把现有面板调用迁移为显式全选**
+
+在 `local-data-backup-panel.tsx` import `allLocalBackupRestoreGroups`，并给现有 `restoreLocalBackup()` 调用增加：
+
+```ts
+selectedGroups: allLocalBackupRestoreGroups,
+```
+
+这是必填 API 的编译迁移，不增加选择 UI。任务 3 的红灯会要求把它替换为 `selectedRestoreGroups`。
+
+- [ ] **步骤 7：运行聚焦测试确认绿灯**
 
 ```powershell
 node --experimental-strip-types --test tests/local-backup-restore.test.ts
@@ -198,10 +209,10 @@ git diff --check
 
 预期：恢复测试全部通过；类型检查退出码 0；差异检查无输出。
 
-- [ ] **步骤 7：提交任务 1**
+- [ ] **步骤 8：提交任务 1**
 
 ```powershell
-git add src/lib/backup/local-backup-restore.ts tests/local-backup-restore.test.ts
+git add docs/superpowers/plans/2026-07-21-browser-local-selective-restore.md src/lib/backup/local-backup-restore.ts tests/local-backup-restore.test.ts src/components/account/local-data-backup-panel.tsx
 git commit -m "feat: validate selective restore groups (task 1/4)"
 ```
 
