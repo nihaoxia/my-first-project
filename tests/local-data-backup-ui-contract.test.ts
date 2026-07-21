@@ -86,6 +86,48 @@ test("renders five accessible restore groups and blocks an empty selection", () 
   assert.doesNotMatch(panel, /恢复会替换当前账号的本地数据/u);
 });
 
+test("defaults inspected backups to safe merge and stores only an in-memory inspection", () => {
+  assert.match(panel, /restoreMode/u);
+  assert.match(panel, /useState<LocalBackupRestoreMode>\("merge"\)/u);
+  assert.match(panel, /mergeInspection/u);
+  assert.match(panel, /useState<LocalBackupMergeInspection \| null>\(null\)/u);
+  assert.match(panel, /previewingMerge/u);
+  assert.match(panel, /inspectLocalBackupMerge/u);
+  assert.doesNotMatch(panel, /localStorage\.setItem[^\n]*(?:restoreMode|mergeInspection)/u);
+});
+
+test("invalidates merge preview and confirmation when mode groups or candidate change", () => {
+  assert.match(panel, /clearMergeInspection/u);
+  assert.match(panel, /setMergeInspection\(null\)/u);
+  assert.match(panel, /setConfirmed\(false\)/u);
+  assert.match(panel, /handleRestoreModeChange/u);
+  assert.match(panel, /handleRestoreGroupChange/u);
+});
+
+test("renders accessible restore modes and count-only merge previews", () => {
+  assert.match(panel, /<legend[^>]*>恢复方式<\/legend>/u);
+  assert.match(panel, /type="radio"/u);
+  assert.match(panel, /安全合并（推荐）/u);
+  assert.match(panel, /替换所选分类/u);
+  assert.match(panel, /预览合并结果/u);
+  assert.match(panel, /合并所选数据/u);
+  assert.match(panel, /当前记录/u);
+  assert.match(panel, /将补回/u);
+  assert.match(panel, /冲突保留当前/u);
+  assert.match(panel, /重新编号/u);
+  assert.doesNotMatch(panel, /targetRawValues\[[^\]]+\]/u);
+});
+
+test("uses mode-specific confirmation and preserves candidates after prewrite merge errors", () => {
+  assert.match(panel, /安全合并会保留当前记录/u);
+  assert.match(panel, /恢复会替换所选分类/u);
+  assert.match(panel, /CURRENT_DATA_CHANGED/u);
+  assert.match(panel, /请重新预览/u);
+  assert.match(panel, /preserveCandidate/u);
+  assert.match(panel, /invalidateRestoreCandidate/u);
+  assert.match(panel, /clearMergeInspection/u);
+});
+
 test("renders accessible inline controls, statuses, and a content-free preview", () => {
   assert.match(panel, /aria-labelledby="local-backup-heading"/u);
   assert.equal((panel.match(/type="password"/gu) ?? []).length, 3);

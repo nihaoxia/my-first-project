@@ -29,8 +29,11 @@ import {
 } from "@/lib/backup/local-backup-crypto";
 import {
   allLocalBackupRestoreGroups,
+  inspectLocalBackupMerge,
   restoreLocalBackup,
+  type LocalBackupMergeInspection,
   type LocalBackupRestoreGroup,
+  type LocalBackupRestoreMode,
 } from "@/lib/backup/local-backup-restore";
 import {
   buildScopedLocalStorageKey,
@@ -53,15 +56,31 @@ export function LocalDataBackupPanel() {
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [candidate, setCandidate] = useState<LocalBackupRestoreCandidate | null>(null);
+  const [restoreMode, setRestoreMode] = useState<LocalBackupRestoreMode>("merge");
   const [selectedRestoreGroups, setSelectedRestoreGroups] = useState<LocalBackupRestoreGroup[]>([]);
+  const [mergeInspection, setMergeInspection] = useState<LocalBackupMergeInspection | null>(null);
+  const [previewingMerge, setPreviewingMerge] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreNotice, setRestoreNotice] = useState<Notice | null>(null);
 
+  function clearMergeInspection(clearNotice = true) {
+    setMergeInspection(null);
+    setConfirmed(false);
+    if (clearNotice) setRestoreNotice(null);
+  }
+
   function invalidateRestoreCandidate() {
     setCandidate(null);
+    setRestoreMode("merge");
     setSelectedRestoreGroups([]);
+    setMergeInspection(null);
     setConfirmed(false);
+  }
+
+  function handleRestoreModeChange(mode: LocalBackupRestoreMode) {
+    setRestoreMode(mode);
+    clearMergeInspection();
   }
 
   function handleRestoreGroupChange(group: LocalBackupRestoreGroup, checked: boolean) {
@@ -72,8 +91,7 @@ export function LocalDataBackupPanel() {
           )
         : current.filter((candidateGroup) => candidateGroup !== group),
     );
-    setConfirmed(false);
-    setRestoreNotice(null);
+    clearMergeInspection();
   }
 
   function clearSelectedFile() {
@@ -209,9 +227,11 @@ export function LocalDataBackupPanel() {
       }
 
       setCandidate(decrypted.candidate);
+      setRestoreMode("merge");
       setSelectedRestoreGroups([...allLocalBackupRestoreGroups]);
+      setMergeInspection(null);
       setRestoreNotice({
-        message: "备份检查通过。确认下方数量无误后，可以选择恢复。",
+        message: "备份检查通过。请选择恢复方式和内容。",
         error: false,
       });
     } catch {
@@ -226,11 +246,84 @@ export function LocalDataBackupPanel() {
     }
   }
 
+  function handlePreviewMerge() {
+    if (
+      !candidate ||
+      restoreMode !== "merge" ||
+      selectedRestoreGroups.length === 0 ||
+      previewingMerge ||
+      restoring
+    ) {
+      return;
+    }
+
+    setPreviewingMerge(true);
+    setRestoreNotice(null);
+    setMergeInspection(null);
+    setConfirmed(false);
+
+    try {
+      const scope = readCurrentScopeFingerprint();
+      if (!scope) {
+        setRestoreNotice({ message: scopeUnavailableMessage, error: true });
+        invalidateRestoreCandidate();
+        clearSelectedFile();
+        return;
+      }
+
+      const storage = readBrowserLocalStorage();
+      if (!storage.ok) {
+        setRestoreNotice({ message: "无法读取当前账号的本地数据，未生成合并预览。", error: true });
+        return;
+      }
+
+      const inspected = inspectLocalBackupMerge({
+        storage: storage.storage,
+        payload: candidate.payload,
+        selectedGroups: selectedRestoreGroups,
+        sourceScopeFingerprint: candidate.sourceScopeFingerprint,
+        inspectedScopeFingerprint: candidate.inspectedScopeFingerprint,
+        currentScopeFingerprint: scope,
+      });
+      if (!inspected.ok) {
+        setRestoreNotice({ message: getMergeErrorMessage(inspected.code, "preview"), error: true });
+        if (inspected.code === "SCOPE_MISMATCH") {
+          invalidateRestoreCandidate();
+          clearSelectedFile();
+        }
+        return;
+      }
+
+      setMergeInspection(inspected.inspection);
+      setRestoreNotice({
+        message:
+          inspected.inspection.changedDataKeys.length === 0
+            ? "当前数据已包含所选备份记录，无需写入。"
+            : "合并预览已生成。请核对下方数量后确认。",
+        error: false,
+      });
+    } catch {
+      setRestoreNotice({ message: "无法生成合并预览，请重试。", error: true });
+    } finally {
+      setPreviewingMerge(false);
+    }
+  }
+
   function handleRestore() {
-    if (!(candidate && confirmed) || selectedRestoreGroups.length === 0 || restoring) return;
+    const mergeHasChanges = (mergeInspection?.changedDataKeys.length ?? 0) > 0;
+    if (
+      !(candidate && confirmed) ||
+      selectedRestoreGroups.length === 0 ||
+      restoring ||
+      previewingMerge ||
+      (restoreMode === "merge" && !(mergeInspection && mergeHasChanges))
+    ) {
+      return;
+    }
 
     setRestoring(true);
     setRestoreNotice(null);
+    let preserveCandidate = false;
 
     try {
       const scope = readCurrentScopeFingerprint();
@@ -241,23 +334,40 @@ export function LocalDataBackupPanel() {
 
       const storage = readBrowserLocalStorage();
       if (!storage.ok) {
-        setRestoreNotice({ message: "无法读取当前账号的本地数据，未开始恢复。", error: true });
+        preserveCandidate = restoreMode === "merge";
+        setRestoreNotice({
+          message:
+            restoreMode === "merge"
+              ? "无法读取当前账号的本地数据，未开始合并。"
+              : "无法读取当前账号的本地数据，未开始恢复。",
+          error: true,
+        });
         return;
       }
 
-      const result = restoreLocalBackup({
-        mode: "replace",
+      const commonInput = {
         storage: storage.storage,
         payload: candidate.payload,
         selectedGroups: selectedRestoreGroups,
         sourceScopeFingerprint: candidate.sourceScopeFingerprint,
         inspectedScopeFingerprint: candidate.inspectedScopeFingerprint,
         currentScopeFingerprint: scope,
-      });
+      };
+      const result =
+        restoreMode === "merge"
+          ? restoreLocalBackup({
+              ...commonInput,
+              mode: "merge",
+              mergeInspection: mergeInspection!,
+            })
+          : restoreLocalBackup({ ...commonInput, mode: "replace" });
 
       if (result.ok) {
         setRestoreNotice({
-          message: "所选本地数据已恢复。请刷新页面，让相关工作区重新读取数据。",
+          message:
+            restoreMode === "merge"
+              ? "所选备份数据已安全合并，当前记录未被覆盖。请刷新页面，让相关工作区重新读取数据。"
+              : "所选本地数据已恢复。请刷新页面，让相关工作区重新读取数据。",
           error: false,
         });
         return;
@@ -265,26 +375,49 @@ export function LocalDataBackupPanel() {
 
       if (result.code === "SCOPE_MISMATCH") {
         setRestoreNotice({ message: "此备份来自另一个账号，当前账号不能恢复。", error: true });
-      } else if (result.code === "INVALID_SELECTION") {
-        setRestoreNotice({ message: "恢复范围无效，未写入任何内容。", error: true });
-      } else if (result.code === "READ_FAILED") {
-        setRestoreNotice({ message: "无法读取当前账号的本地数据，未开始恢复。", error: true });
       } else if (result.code === "WRITE_FAILED" && result.rollback === "complete") {
         setRestoreNotice({
-          message: "恢复失败，所选分类的原有本地数据已恢复，未完成替换。",
+          message:
+            restoreMode === "merge"
+              ? "合并失败，所选分类的原有本地数据已恢复，未完成写入。"
+              : "恢复失败，所选分类的原有本地数据已恢复，未完成替换。",
+          error: true,
+        });
+      } else if (result.code === "WRITE_FAILED") {
+        setRestoreNotice({
+          message:
+            restoreMode === "merge"
+              ? "合并失败，且无法完整还原所选分类的原有本地数据。请不要继续编辑，并保留备份文件。"
+              : "恢复失败，且无法完整还原所选分类的原有本地数据。请不要继续编辑，并保留备份文件。",
           error: true,
         });
       } else {
+        preserveCandidate = restoreMode === "merge" && result.code !== "INVALID_MODE";
         setRestoreNotice({
-          message: "恢复失败，且无法完整还原所选分类的原有本地数据。请不要继续编辑，并保留备份文件。",
+          message:
+            restoreMode === "merge"
+              ? getMergeErrorMessage(result.code, "execute")
+              : result.code === "INVALID_SELECTION"
+                ? "恢复范围无效，未写入任何内容。"
+                : "无法读取当前账号的本地数据，未开始恢复。",
           error: true,
         });
       }
     } catch {
-      setRestoreNotice({ message: "无法读取当前账号的本地数据，未开始恢复。", error: true });
+      setRestoreNotice({
+        message:
+          restoreMode === "merge"
+            ? "无法完成安全合并，未确认当前数据状态。"
+            : "无法读取当前账号的本地数据，未开始恢复。",
+        error: true,
+      });
     } finally {
-      invalidateRestoreCandidate();
-      clearSelectedFile();
+      if (preserveCandidate) {
+        clearMergeInspection(false);
+      } else {
+        invalidateRestoreCandidate();
+        clearSelectedFile();
+      }
       setRestoring(false);
     }
   }
@@ -295,6 +428,11 @@ export function LocalDataBackupPanel() {
     setRestoreNotice(null);
     invalidateRestoreCandidate();
   }
+
+  const mergeHasChanges = (mergeInspection?.changedDataKeys.length ?? 0) > 0;
+  const canConfirm =
+    selectedRestoreGroups.length > 0 &&
+    (restoreMode === "replace" || (restoreMode === "merge" && mergeHasChanges));
 
   return (
     <section
@@ -310,7 +448,7 @@ export function LocalDataBackupPanel() {
             本地数据备份
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
-            备份只在当前浏览器中加密，不会上传。恢复会替换所选分类的当前本地数据。
+            备份只在当前浏览器中加密，不会上传。恢复时可安全补回缺失记录，或替换所选分类。
           </p>
         </div>
       </div>
@@ -430,6 +568,46 @@ export function LocalDataBackupPanel() {
               </p>
 
               <fieldset className="mt-5 border-t border-[var(--border)] pt-5">
+                <legend className="font-semibold">恢复方式</legend>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <label className="flex items-start gap-3 text-sm leading-6">
+                    <input
+                      type="radio"
+                      name="local-backup-restore-mode"
+                      value="merge"
+                      className="mt-1 size-4 accent-[var(--primary)]"
+                      checked={restoreMode === "merge"}
+                      disabled={restoring || previewingMerge}
+                      onChange={() => handleRestoreModeChange("merge")}
+                    />
+                    <span>
+                      <span className="font-medium">安全合并（推荐）</span>
+                      <span className="block text-xs text-[var(--muted-foreground)]">
+                        保留当前记录，只补回备份中缺失的记录。
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-3 text-sm leading-6">
+                    <input
+                      type="radio"
+                      name="local-backup-restore-mode"
+                      value="replace"
+                      className="mt-1 size-4 accent-[var(--primary)]"
+                      checked={restoreMode === "replace"}
+                      disabled={restoring || previewingMerge}
+                      onChange={() => handleRestoreModeChange("replace")}
+                    />
+                    <span>
+                      <span className="font-medium">替换所选分类</span>
+                      <span className="block text-xs text-[var(--muted-foreground)]">
+                        所选分类会完整恢复为备份内容。
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </fieldset>
+
+              <fieldset className="mt-5 border-t border-[var(--border)] pt-5">
                 <legend className="font-semibold">选择恢复内容</legend>
                 <p
                   id="local-restore-library-help"
@@ -444,7 +622,7 @@ export function LocalDataBackupPanel() {
                         type="checkbox"
                         className="mt-1 size-4 accent-[var(--primary)]"
                         checked={selectedRestoreGroups.includes(option.group)}
-                        disabled={restoring}
+                        disabled={restoring || previewingMerge}
                         aria-describedby={
                           option.group === "library" ? "local-restore-library-help" : undefined
                         }
@@ -469,28 +647,94 @@ export function LocalDataBackupPanel() {
                 </p>
               ) : null}
 
+              {restoreMode === "merge" ? (
+                <div className="mt-5 border-t border-[var(--border)] pt-5">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={
+                      selectedRestoreGroups.length === 0 ||
+                      previewingMerge ||
+                      restoring
+                    }
+                    onClick={handlePreviewMerge}
+                  >
+                    <FileCheck2 aria-hidden="true" size={16} />
+                    {previewingMerge ? "正在预览" : "预览合并结果"}
+                  </Button>
+
+                  {mergeInspection ? (
+                    <div className="mt-5" aria-labelledby="local-merge-preview-heading">
+                      <h5 id="local-merge-preview-heading" className="font-semibold">
+                        合并预览
+                      </h5>
+                      <p className="mt-1 max-w-[68ch] text-xs leading-5 text-[var(--muted-foreground)]">
+                        这里只显示数量。安全合并不会展示或覆盖冲突记录的正文。
+                      </p>
+                      <dl className="mt-3 divide-y divide-[var(--border)] text-sm">
+                        {restoreGroupOptions
+                          .filter((option) => selectedRestoreGroups.includes(option.group))
+                          .map((option) => {
+                            const groupPreview = mergeInspection.preview[option.group];
+                            if (!groupPreview) return null;
+                            return (
+                              <div
+                                key={option.group}
+                                className="grid gap-1 py-3 first:pt-0 sm:grid-cols-[9rem_1fr] sm:gap-4"
+                              >
+                                <dt className="font-medium">{option.label}</dt>
+                                <dd className="text-xs leading-5 text-[var(--muted-foreground)]">
+                                  {getMergePreviewCountLabel(groupPreview)}
+                                </dd>
+                              </div>
+                            );
+                          })}
+                      </dl>
+                      {!mergeHasChanges ? (
+                        <p className="mt-2 text-sm text-[var(--muted-foreground)]" role="status">
+                          当前数据已包含所选备份记录，无需写入。
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               <label className="mt-5 flex items-start gap-3 text-sm leading-6">
                 <input
                   type="checkbox"
                   className="mt-1 size-4 accent-[var(--primary)]"
                   checked={confirmed}
-                  disabled={selectedRestoreGroups.length === 0 || restoring}
+                  disabled={!canConfirm || restoring || previewingMerge}
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
-                <span>我了解恢复会替换所选分类的当前本地数据</span>
+                <span>
+                  {restoreMode === "merge"
+                    ? "我了解安全合并会保留当前记录，并补回备份中缺失的记录；同 ID 冲突默认保留当前版本。"
+                    : "我了解恢复会替换所选分类的当前本地数据"}
+                </span>
               </label>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  disabled={
-                    !(candidate && confirmed) || selectedRestoreGroups.length === 0 || restoring
-                  }
+                  disabled={!(candidate && confirmed) || !canConfirm || restoring || previewingMerge}
                   onClick={handleRestore}
                 >
                   <ShieldCheck aria-hidden="true" size={16} />
-                  {restoring ? "正在恢复" : "恢复所选数据"}
+                  {restoring
+                    ? restoreMode === "merge"
+                      ? "正在合并"
+                      : "正在恢复"
+                    : restoreMode === "merge"
+                      ? "合并所选数据"
+                      : "恢复所选数据"}
                 </Button>
-                <Button type="button" variant="ghost" disabled={restoring} onClick={handleCancelRestore}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={restoring || previewingMerge}
+                  onClick={handleCancelRestore}
+                >
                   取消
                 </Button>
               </div>
@@ -537,6 +781,41 @@ function getRestoreGroupCountLabel(
       return `${preview.notes} 项`;
     case "readerSelections":
       return `${preview.readerSelections} 项`;
+  }
+}
+
+function getMergePreviewCountLabel(
+  preview: NonNullable<
+    LocalBackupMergeInspection["preview"][LocalBackupRestoreGroup]
+  >,
+) {
+  return `当前记录 ${preview.current} 项；备份 ${preview.backup} 项；将补回 ${preview.added} 项；已存在 ${preview.existing} 项；冲突保留当前 ${preview.conflictsKeptCurrent} 项；重新编号 ${preview.rekeyed} 项`;
+}
+
+function getMergeErrorMessage(code: string, phase: "preview" | "execute") {
+  switch (code) {
+    case "SCOPE_MISMATCH":
+      return "当前登录状态已变化，请重新检查备份。";
+    case "INVALID_SELECTION":
+      return "恢复范围无效，未写入任何内容。";
+    case "INVALID_MERGE_INSPECTION":
+      return "合并预览已失效，未写入任何内容。请重新预览。";
+    case "CURRENT_DATA_CHANGED":
+      return "预览后当前数据发生了变化，未写入任何内容。请重新预览。";
+    case "CURRENT_DATA_MALFORMED":
+      return "当前所选分类的数据异常，无法安全合并，未写入任何内容。";
+    case "BACKUP_DATA_MALFORMED":
+      return "备份中的所选数据不完整或已损坏，未写入任何内容。";
+    case "MISSING_ORIGINAL_BOOK":
+      return "合并后的译本缺少对应原书，未写入任何内容。";
+    case "MERGED_DATA_TOO_LARGE":
+      return "合并后的所选数据超过本地安全预算，未写入任何内容。";
+    case "READ_FAILED":
+      return phase === "preview"
+        ? "无法读取当前账号的本地数据，未生成合并预览。"
+        : "无法读取当前账号的本地数据，未开始合并。请重新预览。";
+    default:
+      return "无法完成安全合并，未写入任何内容。";
   }
 }
 
