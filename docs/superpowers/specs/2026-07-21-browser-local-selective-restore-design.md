@@ -2,7 +2,7 @@
 
 日期：2026-07-21
 
-状态：方案 A 已批准，等待书面规格复审
+状态：书面规格已批准
 
 依赖规格：`docs/superpowers/specs/2026-07-21-browser-local-data-backup-design.md`
 
