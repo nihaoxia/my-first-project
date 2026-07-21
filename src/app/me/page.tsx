@@ -5,8 +5,7 @@ import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-pan
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
-import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
-import { getCloudServerConfig } from "@/lib/cloud/server-config";
+import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
 import { balanceRecords, myPageSummary, translationTasks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
@@ -21,7 +20,7 @@ export default async function MePage({
 }: {
   searchParams?: Promise<{ authError?: string }>;
 }) {
-  const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
+  const persistence = resolveCloudPersistenceModeFromEnvironment(process.env);
   const params = await searchParams;
   const authError = params?.authError === "SIGN_OUT_FAILED"
     ? "退出登录失败，你仍处于登录状态。请稍后重试。"

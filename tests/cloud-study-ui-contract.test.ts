@@ -7,7 +7,7 @@ function source(path: string) { return readFileSync(new URL(`../${path}`, import
 test("study pages resolve one authoritative persistence mode and load cloud rows server-side", () => {
   for (const page of ["src/app/study/vocabulary/page.tsx", "src/app/study/sentences/page.tsx", "src/app/study/notes/page.tsx"]) {
     const text = source(page);
-    assert.match(text, /resolveCloudPersistenceMode\(getCloudServerConfig\(\)\)/);
+    assert.match(text, /resolveCloudPersistenceModeFromEnvironment\(process\.env\)/);
     assert.match(text, /getCloudStudyService\(\)\.list\(session\.user\.id/);
     assert.match(text, /initialNextCursor/);
     assert.match(text, /persistence=\{persistence\}/);
@@ -113,7 +113,7 @@ test("mounts local-to-cloud migration only from the authenticated cloud account 
   const notesPage = source("src/app/study/notes/page.tsx");
   const panel = source("src/components/cloud/cloud-local-import-panel.tsx");
 
-  assert.match(mePage, /resolveCloudPersistenceMode\(getCloudServerConfig\(\)\)/);
+  assert.match(mePage, /resolveCloudPersistenceModeFromEnvironment\(process\.env\)/);
   assert.match(mePage, /persistence === "cloud"/);
   assert.match(mePage, /<CloudLocalImportPanel\s*\/>/);
   assert.match(mePage, /<AppShell requireAuth>/);

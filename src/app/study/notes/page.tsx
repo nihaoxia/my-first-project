@@ -3,8 +3,7 @@ import { NotesWorkspace } from "@/components/study/notes-workspace";
 import { StudyLibraryHeader } from "@/components/study/study-library-header";
 import type { StudyNote } from "@/lib/study/study-notes-local";
 import { getAppSession } from "@/lib/auth/app-session";
-import { getCloudServerConfig } from "@/lib/cloud/server-config";
-import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
 import { getCloudStudyService } from "@/lib/cloud/study";
 import { CloudStudyError, listAllStudyItemsForExport } from "@/lib/cloud/study-core";
 
@@ -28,7 +27,7 @@ const noteItems: StudyNote[] = [
 ];
 
 export default async function NotesPage() {
-  const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
+  const persistence = resolveCloudPersistenceModeFromEnvironment(process.env);
   const session = persistence === "cloud" ? await getAppSession() : null;
   const cloud = persistence === "cloud" && Boolean(session);
   const page = cloud && session ? await getCloudStudyService().list(session.user.id, { kind: "note" }) : { items: [], nextCursor: null };

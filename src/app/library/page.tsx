@@ -8,8 +8,7 @@ import { originalBooks, translatedBooks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 import { getAppSession } from "@/lib/auth/app-session";
 import { getCloudBooksService } from "@/lib/cloud/books";
-import { getCloudServerConfig } from "@/lib/cloud/server-config";
-import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
 
 const bookTiles = [
   ...translatedBooks.map((book, index) => ({
@@ -43,7 +42,7 @@ const bookTiles = [
 ];
 
 export default async function LibraryPage() {
-  const persistenceMode = resolveCloudPersistenceMode(getCloudServerConfig());
+  const persistenceMode = resolveCloudPersistenceModeFromEnvironment(process.env);
   const session = persistenceMode === "cloud" ? await getAppSession() : null;
   const cloudBooks = persistenceMode === "cloud" && session ? await getCloudBooksService().list(session.user.id) : null;
   const visibleBookTiles = cloudBooks ? cloudBooks.map((book, index) => ({

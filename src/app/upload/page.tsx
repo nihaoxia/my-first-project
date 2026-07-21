@@ -2,8 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { LocalUploadPanel } from "@/components/upload/local-upload-panel";
 import { CloudUploadPanel } from "@/components/cloud/cloud-upload-panel";
-import { getCloudServerConfig } from "@/lib/cloud/server-config";
-import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
 import { inferBookMetadataFromFileName } from "@/lib/upload/book-metadata";
 import { formatBytes, uploadFilePolicy } from "@/lib/upload/file-policy";
 import { txtChapterParsePolicy } from "@/lib/upload/txt-chapter-parser";
@@ -26,8 +25,7 @@ const steps = [
 ];
 
 export default function UploadPage() {
-  const cloudResult = getCloudServerConfig();
-  const persistenceMode = resolveCloudPersistenceMode(cloudResult);
+  const persistenceMode = resolveCloudPersistenceModeFromEnvironment(process.env);
   return (
     <AppShell requireAuth>
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">

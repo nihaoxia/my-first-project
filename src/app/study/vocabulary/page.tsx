@@ -5,14 +5,13 @@ import { VocabularyWorkspace } from "@/components/study/vocabulary-workspace";
 import { stageEightVocabularyCsvExport, stageSevenVocabularyView } from "@/lib/mock-data";
 import { getAppSession } from "@/lib/auth/app-session";
 import { getCloudBooksService } from "@/lib/cloud/books";
-import { getCloudServerConfig } from "@/lib/cloud/server-config";
-import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { resolveCloudPersistenceModeFromEnvironment } from "@/lib/cloud/persistence-mode";
 import { getCloudStudyService } from "@/lib/cloud/study";
 import { buildVocabularyCsvExport } from "@/lib/export/study-export";
 import { CloudStudyError, listAllStudyItemsForExport } from "@/lib/cloud/study-core";
 
 export default async function VocabularyPage() {
-  const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
+  const persistence = resolveCloudPersistenceModeFromEnvironment(process.env);
   const session = persistence === "cloud" ? await getAppSession() : null;
   const cloud = persistence === "cloud" && Boolean(session);
   const page = cloud && session ? await getCloudStudyService().list(session.user.id, { kind: "vocabulary" }) : { items: [], nextCursor: null };
