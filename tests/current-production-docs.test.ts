@@ -50,21 +50,23 @@ test("documents browser-local speech without claiming remote audio capabilities"
   }
 });
 
-test("documents encrypted same-account backup without claiming cloud sync", () => {
+test("documents current-first safe backup merge without claiming cloud sync", () => {
   const readme = readFileSync("README.md", "utf8");
   const roadmap = readFileSync("docs/ROADMAP.md", "utf8");
 
   for (const document of [readme, roadmap]) {
     assert.match(document, /浏览器本地加密备份/u);
     assert.match(document, /口令.*无法找回/u);
-    assert.match(document, /恢复.*整体替换/u);
+    assert.match(document, /安全合并/u);
+    assert.match(document, /当前(?:记录|数据).*优先|优先保留当前/u);
+    assert.match(document, /笔记.*(?:重新编号|新 ID)/u);
+    assert.match(document, /按分类.*整体替换|选择.*分类.*整体替换/u);
     assert.match(document, /不会上传|不上传/u);
     assert.match(document, /云端同步/u);
     assert.match(document, /跨账号迁移/u);
-    assert.match(document, /选择性恢复|自动合并/u);
-    assert.match(document, /按分类.*整体替换|选择.*分类.*整体替换/u);
+    assert.match(document, /选择性恢复|安全合并/u);
     assert.match(document, /原书.*译本.*一组|原书与译本.*关联组/u);
-    assert.match(document, /自动合并.*未实现|仍未实现.*自动合并/u);
+    assert.doesNotMatch(document, /自动合并.*未实现|仍未实现.*自动合并/u);
     assert.doesNotMatch(document, /选择性恢复.*仍未实现/u);
     assert.doesNotMatch(document, /已完成云端自动备份|已支持跨账号恢复/u);
   }

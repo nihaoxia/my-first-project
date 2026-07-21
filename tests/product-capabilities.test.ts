@@ -19,6 +19,7 @@ test("home capability copy is derived from the local upload policy", () => {
   assert.equal(localPrototypeCapabilities.browserLocalSpeechPlayback, true);
   assert.equal(localPrototypeCapabilities.browserLocalEncryptedBackup, true);
   assert.equal(localPrototypeCapabilities.browserLocalSelectiveRestore, true);
+  assert.equal(localPrototypeCapabilities.browserLocalSafeBackupMerge, true);
 });
 
 test("home capability copy clearly separates the prototype from pending integrations", () => {
@@ -27,7 +28,10 @@ test("home capability copy clearly separates the prototype from pending integrat
   assert.match(homePrototypeCopy.summary, /真实翻译需要配置 MCP 与 OpenAI 兼容模型服务/);
   assert.match(homePrototypeCopy.summary, /浏览器本地 TXT 与标准 EPUB 3 下载/);
   assert.match(homePrototypeCopy.summary, /浏览器本地语音朗读/);
-  assert.match(homePrototypeCopy.summary, /浏览器本地加密备份与按分类同账号恢复/);
+  assert.match(
+    homePrototypeCopy.summary,
+    /浏览器本地加密备份、安全合并与按分类同账号恢复/,
+  );
   assert.doesNotMatch(homePrototypeCopy.summary, /真实 EPUB 导出仍待接入/);
   assert.match(homePrototypeCopy.summary, /云端导出文件保存/);
   assert.match(homePrototypeCopy.translationWorkflowDescription, /通过已配置的 MCP 服务逐章生成真实译文/);
