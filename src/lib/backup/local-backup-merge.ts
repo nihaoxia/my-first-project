@@ -7,10 +7,17 @@ import {
   type StoredLocalTranslation,
 } from "../library/local-translation-storage.ts";
 import {
+  parseReaderSelectionCollectionsResult,
+  type ReaderSelectionCollections,
+} from "../reader/reader-selection-save.ts";
+import {
   parseStoredSentenceItemsResult,
+  parseStoredStudyNotesResult,
   parseStoredVocabularyItemsResult,
 } from "../study/local-study-storage.ts";
+import type { StudyNote } from "../study/study-notes-local.ts";
 import {
+  localBackupPayloadByteLimit,
   localBackupStorageEntries,
   type LocalBackupDataKey,
   type LocalBackupPayloadV1,
@@ -202,16 +209,72 @@ export function buildLocalBackupMergePlan(input: {
     );
   }
 
-  if (selected.groups.includes("notes") || selected.groups.includes("readerSelections")) {
-    return { ok: false, code: "CURRENT_DATA_MALFORMED" };
+  if (selected.groups.includes("notes")) {
+    const current = parseStoredStudyNotesResult(input.currentRawValues.notes ?? null);
+    const backup = parseStoredStudyNotesResult(JSON.stringify(input.payload.data.notes));
+    if (!current.ok || !hasUniqueIds(current.records)) {
+      return { ok: false, code: "CURRENT_DATA_MALFORMED" };
+    }
+    if (!backup.ok || !hasUniqueIds(backup.records)) {
+      return { ok: false, code: "BACKUP_DATA_MALFORMED" };
+    }
+    const merged = mergeNotes(current.records, backup.records);
+    if (merged.added > 0 || merged.rekeyed > 0) {
+      targetRawValues.notes = JSON.stringify(merged.records);
+    }
+    preview.notes = {
+      current: current.records.length,
+      backup: backup.records.length,
+      added: merged.added,
+      existing: merged.existing,
+      conflictsKeptCurrent: 0,
+      rekeyed: merged.rekeyed,
+    };
+  }
+
+  if (selected.groups.includes("readerSelections")) {
+    const current = parseReaderSelectionCollectionsResult(
+      input.currentRawValues.readerSelections ?? null,
+    );
+    const backup = parseReaderSelectionCollectionsResult(
+      JSON.stringify(input.payload.data.readerSelections),
+    );
+    if (!current.ok || hasBlankReaderText(current.collections)) {
+      return { ok: false, code: "CURRENT_DATA_MALFORMED" };
+    }
+    if (!backup.ok || hasBlankReaderText(backup.collections)) {
+      return { ok: false, code: "BACKUP_DATA_MALFORMED" };
+    }
+    const merged = mergeReaderSelections(current.collections, backup.collections);
+    if (merged.added > 0) {
+      targetRawValues.readerSelections = JSON.stringify(merged.collections);
+    }
+    preview.readerSelections = {
+      current: countReaderTexts(current.collections),
+      backup: countReaderTexts(backup.collections),
+      added: merged.added,
+      existing: merged.existing,
+      conflictsKeptCurrent: 0,
+      rekeyed: 0,
+    };
+  }
+
+  const changedDataKeys = localBackupStorageEntries
+    .map(({ dataKey }) => dataKey)
+    .filter((dataKey) => targetRawValues[dataKey] !== undefined);
+  const changedBytes = changedDataKeys.reduce(
+    (total, dataKey) =>
+      total + new TextEncoder().encode(targetRawValues[dataKey]!).byteLength,
+    0,
+  );
+  if (changedBytes > localBackupPayloadByteLimit) {
+    return { ok: false, code: "MERGED_DATA_TOO_LARGE" };
   }
 
   return {
     ok: true,
     preview,
-    changedDataKeys: localBackupStorageEntries
-      .map(({ dataKey }) => dataKey)
-      .filter((dataKey) => targetRawValues[dataKey] !== undefined),
+    changedDataKeys,
     targetRawValues,
   };
 }
@@ -303,6 +366,93 @@ function combineMergePreviews(
     conflictsKeptCurrent: left.conflictsKeptCurrent + right.conflictsKeptCurrent,
     rekeyed: left.rekeyed + right.rekeyed,
   };
+}
+
+function mergeNotes(current: StudyNote[], backup: StudyNote[]) {
+  const usedIds = new Set([...current, ...backup].map((note) => note.id));
+  let nextNumber =
+    [...usedIds].reduce((highest, id) => {
+      const match = /^note-local-(\d+)$/u.exec(id);
+      return match ? Math.max(highest, Number(match[1])) : highest;
+    }, 0) + 1;
+  const currentById = new Map(current.map((note) => [note.id, note]));
+  const records = [...current];
+  let added = 0;
+  let existing = 0;
+  let rekeyed = 0;
+
+  for (const incoming of backup) {
+    const present = currentById.get(incoming.id);
+    if (!present) {
+      records.push(incoming);
+      currentById.set(incoming.id, incoming);
+      added += 1;
+      continue;
+    }
+    if (stableJson(present) === stableJson(incoming)) {
+      existing += 1;
+      continue;
+    }
+    while (usedIds.has(`note-local-${nextNumber}`)) nextNumber += 1;
+    const rekeyedNote = { ...incoming, id: `note-local-${nextNumber}` };
+    usedIds.add(rekeyedNote.id);
+    nextNumber += 1;
+    records.push(rekeyedNote);
+    rekeyed += 1;
+  }
+
+  return { records, added, existing, rekeyed };
+}
+
+function mergeReaderSelections(
+  current: ReaderSelectionCollections,
+  backup: ReaderSelectionCollections,
+) {
+  const vocabulary = mergeReaderTexts(current.vocabularyTexts, backup.vocabularyTexts);
+  const sentences = mergeReaderTexts(current.sentenceTexts, backup.sentenceTexts);
+  return {
+    collections: {
+      vocabularyTexts: vocabulary.texts,
+      sentenceTexts: sentences.texts,
+    },
+    added: vocabulary.added + sentences.added,
+    existing: vocabulary.existing + sentences.existing,
+  };
+}
+
+function mergeReaderTexts(current: string[], backup: string[]) {
+  const texts = [...current];
+  const seen = new Set(current.map(normalizeReaderText));
+  let added = 0;
+  let existing = 0;
+
+  for (const incoming of backup) {
+    const normalized = normalizeReaderText(incoming);
+    if (seen.has(normalized)) {
+      existing += 1;
+      continue;
+    }
+    const text = incoming.trim();
+    texts.push(text);
+    seen.add(normalized);
+    added += 1;
+  }
+
+  return { texts, added, existing };
+}
+
+function hasBlankReaderText(collections: ReaderSelectionCollections) {
+  return [...collections.vocabularyTexts, ...collections.sentenceTexts].some(
+    (text) => text.trim().length === 0,
+  );
+}
+
+function countReaderTexts(collections: ReaderSelectionCollections) {
+  return collections.vocabularyTexts.length + collections.sentenceTexts.length;
+}
+
+function normalizeReaderText(text: string) {
+  return text.trim().toLowerCase();
 }
 
 function hasUniqueIds(records: IdRecord[]) {

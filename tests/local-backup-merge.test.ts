@@ -7,7 +7,10 @@ import {
   resolveLocalBackupRestoreSelection,
   type LocalBackupRestoreMode,
 } from "../src/lib/backup/local-backup-merge.ts";
-import { buildLocalBackupPayload } from "../src/lib/backup/local-backup-core.ts";
+import {
+  buildLocalBackupPayload,
+  localBackupPayloadByteLimit,
+} from "../src/lib/backup/local-backup-core.ts";
 import { buildBackupRawValues } from "./local-backup-fixture.ts";
 
 const defaultRestoreMode: LocalBackupRestoreMode = "merge";
@@ -145,6 +148,180 @@ test("rejects malformed selected current data duplicate ids and missing books", 
     }),
     { ok: false, code: "BACKUP_DATA_MALFORMED" },
   );
+});
+
+test("rekeys different notes with colliding ids and keeps both records", () => {
+  const payload = backupPayload();
+  payload.data.notes = [
+    {
+      id: "note-local-2",
+      title: "备份冲突",
+      source: "个人笔记",
+      updatedAt: "昨天",
+      content: "备份正文",
+    },
+    {
+      id: "note-local-9",
+      title: "备份独有",
+      source: "个人笔记",
+      updatedAt: "昨天",
+      content: "独有正文",
+    },
+  ];
+  const current = [
+    {
+      id: "note-local-2",
+      title: "当前冲突",
+      source: "个人笔记",
+      updatedAt: "刚刚",
+      content: "当前正文",
+    },
+    {
+      id: "note-local-10",
+      title: "当前独有",
+      source: "个人笔记",
+      updatedAt: "刚刚",
+      content: "当前内容",
+    },
+  ];
+
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { notes: JSON.stringify(current) },
+    payload,
+    selectedGroups: ["notes"],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(JSON.parse(result.targetRawValues.notes!), [
+    ...current,
+    { ...payload.data.notes[0], id: "note-local-11" },
+    payload.data.notes[1],
+  ]);
+  assert.deepEqual(result.preview.notes, {
+    current: 2,
+    backup: 2,
+    added: 1,
+    existing: 0,
+    conflictsKeptCurrent: 0,
+    rekeyed: 1,
+  });
+});
+
+test("deduplicates an identical note without writing", () => {
+  const payload = backupPayload();
+  const note = payload.data.notes[0];
+  payload.data.notes = [note];
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { notes: JSON.stringify([note]) },
+    payload,
+    selectedGroups: ["notes"],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.changedDataKeys, []);
+  assert.deepEqual(result.targetRawValues, {});
+  assert.equal(result.preview.notes?.existing, 1);
+});
+
+test("appends backup-only reader texts without deleting current duplicates", () => {
+  const payload = backupPayload();
+  payload.data.readerSelections = {
+    vocabularyTexts: ["  Alpha  ", "Beta"],
+    sentenceTexts: ["Sentence B"],
+  };
+  const current = {
+    vocabularyTexts: ["alpha", "ALPHA", "Current"],
+    sentenceTexts: ["Sentence A"],
+  };
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { readerSelections: JSON.stringify(current) },
+    payload,
+    selectedGroups: ["readerSelections"],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(JSON.parse(result.targetRawValues.readerSelections!), {
+    vocabularyTexts: ["alpha", "ALPHA", "Current", "Beta"],
+    sentenceTexts: ["Sentence A", "Sentence B"],
+  });
+  assert.deepEqual(result.preview.readerSelections, {
+    current: 4,
+    backup: 3,
+    added: 2,
+    existing: 1,
+    conflictsKeptCurrent: 0,
+    rekeyed: 0,
+  });
+});
+
+test("rejects blank current or backup reader text", () => {
+  const payload = backupPayload();
+  assert.deepEqual(
+    buildLocalBackupMergePlan({
+      currentRawValues: {
+        readerSelections: JSON.stringify({ vocabularyTexts: ["   "], sentenceTexts: [] }),
+      },
+      payload,
+      selectedGroups: ["readerSelections"],
+    }),
+    { ok: false, code: "CURRENT_DATA_MALFORMED" },
+  );
+
+  payload.data.readerSelections.vocabularyTexts = ["   "];
+  assert.deepEqual(
+    buildLocalBackupMergePlan({
+      currentRawValues: {
+        readerSelections: JSON.stringify({ vocabularyTexts: [], sentenceTexts: [] }),
+      },
+      payload,
+      selectedGroups: ["readerSelections"],
+    }),
+    { ok: false, code: "BACKUP_DATA_MALFORMED" },
+  );
+});
+
+test("accepts the exact merge budget and rejects one extra byte", () => {
+  const payload = backupPayload();
+  const note = {
+    id: "note-local-2",
+    title: "backup",
+    source: "local",
+    updatedAt: "now",
+    content: "",
+  };
+  const fixedBytes = new TextEncoder().encode(JSON.stringify([note])).byteLength;
+  note.content = "x".repeat(localBackupPayloadByteLimit - fixedBytes);
+  payload.data.notes = [note];
+
+  const exact = buildLocalBackupMergePlan({
+    currentRawValues: { notes: "[]" },
+    payload,
+    selectedGroups: ["notes"],
+  });
+  assert.equal(exact.ok, true);
+
+  note.content += "x";
+  assert.deepEqual(
+    buildLocalBackupMergePlan({
+      currentRawValues: { notes: "[]" },
+      payload,
+      selectedGroups: ["notes"],
+    }),
+    { ok: false, code: "MERGED_DATA_TOO_LARGE" },
+  );
+});
+
+test("does not require raw values for unselected categories", () => {
+  const payload = backupPayload();
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { notes: "[]" },
+    payload,
+    selectedGroups: ["notes"],
+  });
+  assert.equal(result.ok, true);
 });
 
 function backupPayload() {
