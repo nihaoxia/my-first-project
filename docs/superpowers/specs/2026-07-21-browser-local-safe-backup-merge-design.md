@@ -98,9 +98,11 @@ type LocalBackupRestoreMode = "merge" | "replace";
 - 选择另一个文件；
 - 再次检查文件；
 - 取消恢复；
-- 恢复或合并执行结束；
+- 合并成功、替换执行结束或发生过主写入尝试；
 - 当前账号作用域变化；
 - 页面卸载。
+
+如果合并在任何主写入之前因 `CURRENT_DATA_CHANGED`、当前数据解析失败或读取失败而停止，只清除旧合并预览和确认，保留已解密候选、文件和恢复组选择，让用户修复当前状态后直接重新预览。作用域变化仍完整清除候选。
 
 ## 6. 固定合并规则
 
@@ -211,10 +213,11 @@ type LocalBackupMergeInspection = {
   currentRawValues: Partial<Record<LocalBackupDataKey, string | null>>;
   preview: Readonly<Partial<Record<LocalBackupRestoreGroup, LocalBackupMergeGroupPreview>>>;
   changedDataKeys: readonly LocalBackupDataKey[];
+  targetRawValues: Partial<Record<LocalBackupDataKey, string>>;
 };
 ```
 
-`currentRawValues` 只包含选中组对应的键。候选失效时必须和解密候选一起清除，不持久化、不上传、不写入日志。
+`currentRawValues` 只包含选中组对应的键；`targetRawValues` 只包含实际变化键，安全合并不会产生删除目标。候选失效时两者必须和解密候选一起清除，不持久化、不上传、不写入日志。
 
 ## 8. 读取、预算与事务
 
@@ -265,6 +268,8 @@ type LocalBackupMergeInspection = {
 16. 返回合并成功、完整回滚或回滚失败结果。
 
 未选中键在预览、快照比较、解析、预算、写入和回滚中始终零接触。选中但未变化的键可以读取和解析，但不写入或回滚。
+
+合并成功或发生过主写入尝试后，页面沿用现有安全清理，移除候选、文件、选择、确认和快照。合并在主写入前因当前数据变化、读取失败或当前数据异常而停止时，只清除合并检查对象与确认，保留候选和选择以便重新预览；作用域不一致时始终完整清除候选。
 
 ## 9. 结果与错误文案
 
@@ -350,6 +355,7 @@ type LocalBackupMergeInspection = {
 
 - 检查成功后默认安全合并并默认全选五组；
 - 恢复方式、选择或文件变化清除预览和确认；
+- 合并前置零写入错误保留候选与选择并允许重新预览，作用域变化、成功和写入尝试后完整清理；
 - 合并模式没有有效预览时不能确认或执行；
 - 无新增记录时显示稳定提示并禁用执行；
 - 预览只显示数量，不显示用户正文和底层 ID；
