@@ -97,3 +97,86 @@ test("writes the local completion marker only for a genuinely complete response"
   assert.equal(shouldWriteImportMarker({ complete: false, counts: { created: 1, skipped: 0, conflicts: 0, errors: 1 } }), false);
   assert.equal(shouldWriteImportMarker({ complete: true, counts: { created: 0, skipped: 0, conflicts: 1, errors: 0 } }), false);
 });
+
+test("rejects empty duplicate unknown and unavailable local import selections", async () => {
+  const source = {
+    origin: "current-supabase-scope",
+    vocabulary: [],
+    sentences: [],
+    notes: [{ id: "note-1", title: "N", content: "current", source: "local", updatedAt: "today" }],
+    readerSelections: { vocabularyTexts: [], sentenceTexts: [] },
+  };
+  const invalidSelections: unknown[] = [
+    { sourceOrigins: [], kinds: ["note"] },
+    { sourceOrigins: ["current-supabase-scope", "current-supabase-scope"], kinds: ["note"] },
+    { sourceOrigins: ["unknown"], kinds: ["note"] },
+    { sourceOrigins: ["legacy-unscoped"], kinds: ["note"] },
+    { sourceOrigins: ["current-supabase-scope"], kinds: [] },
+    { sourceOrigins: ["current-supabase-scope"], kinds: ["note", "note"] },
+    { sourceOrigins: ["current-supabase-scope"], kinds: ["reading"] },
+  ];
+
+  for (const selection of invalidSelections) {
+    await assert.rejects(
+      buildLocalStudyImportManifest({ sources: [source], selection } as Parameters<typeof buildLocalStudyImportManifest>[0], manifestId),
+      /INVALID_IMPORT_SELECTION/,
+    );
+  }
+});
+
+test("filters selected sources and kinds with current-account precedence", async () => {
+  const vocabulary = (id: string, explanation: string) => ({
+    id,
+    bookTitle: "Book",
+    chapterTitle: "One",
+    term: id,
+    explanation,
+    contextualMean: "",
+    sourceSentence: "",
+    note: "",
+    bookId: "local",
+    chapterId: "local",
+    sourceLabel: "Book · One",
+  });
+  const note = (id: string, content: string) => ({ id, title: id, content, source: "local", updatedAt: "today" });
+  const empty = { sentences: [], readerSelections: { vocabularyTexts: [], sentenceTexts: [] } };
+  const prepared = await buildLocalStudyImportManifest({
+    sources: [
+      { origin: "legacy-unscoped", vocabulary: [vocabulary("same", "legacy"), vocabulary("legacy-only", "legacy-only")], notes: [note("legacy-note", "legacy")], ...empty },
+      { origin: "current-supabase-scope", vocabulary: [vocabulary("same", "current")], notes: [note("current-note", "current")], ...empty },
+    ],
+    selection: {
+      sourceOrigins: ["legacy-unscoped", "current-supabase-scope"],
+      kinds: ["vocabulary"],
+    },
+  } as Parameters<typeof buildLocalStudyImportManifest>[0], manifestId);
+
+  assert.deepEqual(prepared.items.map((item) => item.payload.explanation), ["current", "legacy-only"]);
+  assert.deepEqual(prepared.items.map((item) => item.kind), ["vocabulary", "vocabulary"]);
+  assert.deepEqual(prepared.sourceCounts.map((item) => [item.origin, item.records]), [
+    ["current-supabase-scope", 1],
+    ["legacy-unscoped", 1],
+  ]);
+});
+
+test("returns a content-free count preview for the selected import", async () => {
+  const prepared = await buildLocalStudyImportManifest({
+    sources: [{
+      origin: "current-supabase-scope",
+      vocabulary: [{ id: "v-1", bookTitle: "Book", chapterTitle: "One", term: "secret term", explanation: "secret explanation", contextualMean: "", sourceSentence: "", note: "", bookId: "local", chapterId: "local", sourceLabel: "x" }],
+      sentences: [],
+      notes: [{ id: "n-1", title: "secret title", content: "secret body", source: "local", updatedAt: "today" }],
+      readerSelections: { vocabularyTexts: ["secret orphan"], sentenceTexts: ["not selected"] },
+    }],
+    selection: {
+      sourceOrigins: ["current-supabase-scope"],
+      kinds: ["vocabulary", "note"],
+    },
+  } as Parameters<typeof buildLocalStudyImportManifest>[0], manifestId);
+
+  assert.deepEqual(prepared.preview.totals, { vocabulary: 1, sentence: 0, note: 1 });
+  assert.equal(prepared.preview.unresolved, 1);
+  assert.equal(prepared.preview.localErrors, 0);
+  assert.equal(prepared.preview.sources[0].records, 2);
+  assert.equal(JSON.stringify(prepared.preview).includes("secret"), false);
+});

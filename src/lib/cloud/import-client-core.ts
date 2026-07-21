@@ -5,42 +5,76 @@ import type { StudyNote } from "../study/study-notes-local.ts";
 export const cloudImportMarkerStorageKey = "stray-pages.cloud-import-v1";
 export const IMPORT_CHUNK_ITEMS = 1_000;
 export const IMPORT_CHUNK_BYTES = 900 * 1024;
+export const localStudyImportSourceOrigins = ["current-supabase-scope", "legacy-unscoped"] as const;
+export const localStudyImportKinds = ["vocabulary", "sentence", "note"] as const;
+export type LocalStudyImportSourceOrigin = typeof localStudyImportSourceOrigins[number];
+export type LocalStudyImportKind = typeof localStudyImportKinds[number];
+export type LocalStudyImportSelection = { sourceOrigins: LocalStudyImportSourceOrigin[]; kinds: LocalStudyImportKind[] };
 export type LocalStudyImportSource = { origin: string; vocabulary: VocabularyStudyItem[]; sentences: SentenceStudyItem[]; notes: StudyNote[]; readerSelections: ReaderSelectionCollections };
 export type ClientImportItem = { sourceId: string; sourceVersion: 1; kind: "vocabulary" | "sentence" | "note"; source: { bookTitle: string; chapterTitle: string | null; translationTitle: null } | null; payload: Record<string, string> };
 
-export async function buildLocalStudyImportManifest(input: { sources: LocalStudyImportSource[] }, manifestId: string) {
+export async function buildLocalStudyImportManifest(input: { sources: LocalStudyImportSource[]; selection?: LocalStudyImportSelection }, manifestId: string) {
+  const selection = parseSelection(input.sources, input.selection);
+  const sourceOrder = new Map(localStudyImportSourceOrigins.map((origin, index) => [origin, index]));
+  const sources = input.sources
+    .filter((source) => selection.sourceOrigins.includes(source.origin))
+    .sort((left, right) => selection.fixedOrder ? (sourceOrder.get(left.origin as LocalStudyImportSourceOrigin) ?? Number.MAX_SAFE_INTEGER) - (sourceOrder.get(right.origin as LocalStudyImportSourceOrigin) ?? Number.MAX_SAFE_INTEGER) : input.sources.indexOf(left) - input.sources.indexOf(right));
   const items: ClientImportItem[] = [];
   const seen = new Set<string>();
   let unresolved = 0;
   let localErrors = 0;
-  const sourceCounts: Array<{ origin: string; records: number }> = [];
-  for (const source of input.sources) {
+  const sourceCounts: Array<{ origin: string; records: number; counts: Record<LocalStudyImportKind, number> }> = [];
+  for (const source of sources) {
     let count = 0;
-    unresolved += source.readerSelections.vocabularyTexts.length + source.readerSelections.sentenceTexts.length;
-    for (const item of source.vocabulary) {
-      const identity = `vocabulary\0${item.id}`; if (seen.has(identity)) continue; seen.add(identity);
-      if (item.deleted || !item.bookTitle.trim() || item.bookId === "reader-selections") { unresolved += 1; continue; }
-      const candidate = { sourceId: await sourceId("vocabulary", source.origin, item.id), sourceVersion: 1 as const, kind: "vocabulary" as const, source: { bookTitle: item.bookTitle.trim(), chapterTitle: item.chapterTitle.trim() || null, translationTitle: null }, payload: { term: item.term, explanation: item.explanation, contextualMean: item.contextualMean, sourceSentence: item.sourceSentence, note: item.note } };
-      if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
-      items.push(candidate); count += 1;
+    const counts: Record<LocalStudyImportKind, number> = { vocabulary: 0, sentence: 0, note: 0 };
+    if (selection.kinds.includes("vocabulary")) {
+      unresolved += source.readerSelections.vocabularyTexts.length;
+      for (const item of source.vocabulary) {
+        const identity = `vocabulary\0${item.id}`; if (seen.has(identity)) continue; seen.add(identity);
+        if (item.deleted || !item.bookTitle.trim() || item.bookId === "reader-selections") { unresolved += 1; continue; }
+        const candidate = { sourceId: await sourceId("vocabulary", source.origin, item.id), sourceVersion: 1 as const, kind: "vocabulary" as const, source: { bookTitle: item.bookTitle.trim(), chapterTitle: item.chapterTitle.trim() || null, translationTitle: null }, payload: { term: item.term, explanation: item.explanation, contextualMean: item.contextualMean, sourceSentence: item.sourceSentence, note: item.note } };
+        if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
+        items.push(candidate); count += 1; counts.vocabulary += 1;
+      }
     }
-    for (const item of source.sentences) {
-      const identity = `sentence\0${item.id}`; if (seen.has(identity)) continue; seen.add(identity);
-      if (item.deleted || !item.bookTitle.trim() || item.bookId === "reader-selections") { unresolved += 1; continue; }
-      const candidate = { sourceId: await sourceId("sentence", source.origin, item.id), sourceVersion: 1 as const, kind: "sentence" as const, source: { bookTitle: item.bookTitle.trim(), chapterTitle: item.chapterTitle.trim() || null, translationTitle: null }, payload: { originalText: item.originalText, translatedText: item.translatedText, explanation: item.explanation, note: item.note } };
-      if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
-      items.push(candidate); count += 1;
+    if (selection.kinds.includes("sentence")) {
+      unresolved += source.readerSelections.sentenceTexts.length;
+      for (const item of source.sentences) {
+        const identity = `sentence\0${item.id}`; if (seen.has(identity)) continue; seen.add(identity);
+        if (item.deleted || !item.bookTitle.trim() || item.bookId === "reader-selections") { unresolved += 1; continue; }
+        const candidate = { sourceId: await sourceId("sentence", source.origin, item.id), sourceVersion: 1 as const, kind: "sentence" as const, source: { bookTitle: item.bookTitle.trim(), chapterTitle: item.chapterTitle.trim() || null, translationTitle: null }, payload: { originalText: item.originalText, translatedText: item.translatedText, explanation: item.explanation, note: item.note } };
+        if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
+        items.push(candidate); count += 1; counts.sentence += 1;
+      }
     }
-    for (const note of source.notes) {
-      const identity = `note\0${note.id}`; if (seen.has(identity)) continue; seen.add(identity);
-      const candidate = { sourceId: await sourceId("note", source.origin, note.id), sourceVersion: 1 as const, kind: "note" as const, source: null, payload: { title: note.title, content: note.content } };
-      if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
-      items.push(candidate); count += 1;
+    if (selection.kinds.includes("note")) {
+      for (const note of source.notes) {
+        const identity = `note\0${note.id}`; if (seen.has(identity)) continue; seen.add(identity);
+        const candidate = { sourceId: await sourceId("note", source.origin, note.id), sourceVersion: 1 as const, kind: "note" as const, source: null, payload: { title: note.title, content: note.content } };
+        if (!isLegalClientItem(candidate)) { unresolved += 1; localErrors += 1; continue; }
+        items.push(candidate); count += 1; counts.note += 1;
+      }
     }
-    sourceCounts.push({ origin: source.origin, records: count });
+    sourceCounts.push({ origin: source.origin, records: count, counts });
   }
-  return { items, unresolved, localErrors, sourceCounts, manifest: { version: 1 as const, manifestId, items } };
+  const totals = sourceCounts.reduce((result, source) => ({ vocabulary: result.vocabulary + source.counts.vocabulary, sentence: result.sentence + source.counts.sentence, note: result.note + source.counts.note }), { vocabulary: 0, sentence: 0, note: 0 });
+  const preview = { totals, unresolved, localErrors, sources: sourceCounts.map((source) => ({ origin: source.origin, records: source.records, counts: source.counts })) };
+  return { items, unresolved, localErrors, sourceCounts, preview, manifest: { version: 1 as const, manifestId, items } };
 }
+
+function parseSelection(sources: LocalStudyImportSource[], raw: LocalStudyImportSelection | undefined): { sourceOrigins: string[]; kinds: LocalStudyImportKind[]; fixedOrder: boolean } {
+  if (raw === undefined) return { sourceOrigins: sources.map((source) => source.origin), kinds: [...localStudyImportKinds], fixedOrder: false };
+  if (!isRecord(raw) || Object.keys(raw).length !== 2 || !Array.isArray(raw.sourceOrigins) || !Array.isArray(raw.kinds) || raw.sourceOrigins.length === 0 || raw.kinds.length === 0) invalidSelection();
+  const origins = raw.sourceOrigins as unknown[];
+  const kinds = raw.kinds as unknown[];
+  if (origins.some((origin) => typeof origin !== "string" || !localStudyImportSourceOrigins.includes(origin as LocalStudyImportSourceOrigin)) || new Set(origins).size !== origins.length) invalidSelection();
+  if (kinds.some((kind) => typeof kind !== "string" || !localStudyImportKinds.includes(kind as LocalStudyImportKind)) || new Set(kinds).size !== kinds.length) invalidSelection();
+  const availableOrigins = sources.map((source) => source.origin);
+  if (origins.some((origin) => availableOrigins.filter((available) => available === origin).length !== 1)) invalidSelection();
+  return { sourceOrigins: origins as string[], kinds: kinds as LocalStudyImportKind[], fixedOrder: true };
+}
+
+function invalidSelection(): never { throw new Error("INVALID_IMPORT_SELECTION"); }
 
 export function buildImportChunks(items: ClientImportItem[], uuid: () => string) {
   const chunks: Array<{ version: 1; manifestId: string; items: ClientImportItem[] }> = [];
