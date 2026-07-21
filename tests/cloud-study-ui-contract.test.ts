@@ -62,7 +62,48 @@ test("local import keeps source copies and writes marker only after complete res
   assert.match(text, /prepared\.unresolved === 0 && totals\.conflicts === 0 && totals\.errors === 0/);
   assert.match(text, /runImportChunks\(prepared\.items/);
   assert.match(text, /readLegacyLocalStorage/);
-  assert.match(text, /writeScopedLocalStorage\(cloudImportMarkerStorageKey/);
+  assert.match(text, /writeScopedLocalStorage\(\s*cloudImportMarkerStorageKey/);
   assert.doesNotMatch(text, /removeScopedLocalStorage|localStorage\.removeItem/);
   assert.match(text, /本地副本未删除/);
+});
+
+test("local import inspects only current and unscoped fixed sources", () => {
+  const text = source("src/components/cloud/cloud-local-import-panel.tsx");
+  assert.match(text, /current-supabase-scope/);
+  assert.match(text, /legacy-unscoped/);
+  assert.doesNotMatch(text, /legacy-mock-scope/);
+  assert.doesNotMatch(text, /deriveLocalStorageScope/);
+  assert.match(text, /readScopedLocalStorage/);
+  assert.match(text, /readLegacyLocalStorage\(storage, key, null\)/);
+  assert.doesNotMatch(text, /localStorage\.length|localStorage\.key\s*\(/);
+});
+
+test("local import separates inspection preview confirmation and execution", () => {
+  const text = source("src/components/cloud/cloud-local-import-panel.tsx");
+  assert.match(text, /检查本地学习数据/);
+  assert.match(text, /生成导入预览/);
+  assert.match(text, /我了解本地副本不会删除/);
+  assert.match(text, /导入所选数据/);
+  assert.doesNotMatch(text, /window\.confirm/);
+  assert.match(text, /setPreviewCandidate\(null\)/);
+  assert.match(text, /setConfirmed\(false\)/);
+  assert.match(text, /<fieldset/);
+  assert.match(text, /<legend/);
+});
+
+test("local import rechecks snapshots before the first network request", () => {
+  const text = source("src/components/cloud/cloud-local-import-panel.tsx");
+  const handler = text.slice(text.indexOf("async function handleImport"));
+  const recheck = handler.indexOf("recheckSelectedSourceSnapshots");
+  const fetchCall = handler.indexOf('fetch("/api/cloud/import"');
+  assert.ok(recheck >= 0 && fetchCall > recheck);
+  assert.match(text, /SOURCE_DATA_CHANGED/);
+  assert.match(text, /readCurrentScopeFingerprint/);
+});
+
+test("completion markers do not permanently block future inspections", () => {
+  const text = source("src/components/cloud/cloud-local-import-panel.tsx");
+  assert.match(text, /writeScopedLocalStorage\(\s*cloudImportMarkerStorageKey/);
+  assert.doesNotMatch(text, /existingMarker/);
+  assert.doesNotMatch(text, /removeScopedLocalStorage|localStorage\.removeItem/);
 });

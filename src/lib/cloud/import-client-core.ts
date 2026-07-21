@@ -10,6 +10,7 @@ export const localStudyImportKinds = ["vocabulary", "sentence", "note"] as const
 export type LocalStudyImportSourceOrigin = typeof localStudyImportSourceOrigins[number];
 export type LocalStudyImportKind = typeof localStudyImportKinds[number];
 export type LocalStudyImportSelection = { sourceOrigins: LocalStudyImportSourceOrigin[]; kinds: LocalStudyImportKind[] };
+export type LocalStudyImportSourceSnapshot = { origin: LocalStudyImportSourceOrigin; rawValues: readonly (string | null)[] };
 export type LocalStudyImportSource = { origin: string; vocabulary: VocabularyStudyItem[]; sentences: SentenceStudyItem[]; notes: StudyNote[]; readerSelections: ReaderSelectionCollections };
 export type ClientImportItem = { sourceId: string; sourceVersion: 1; kind: "vocabulary" | "sentence" | "note"; source: { bookTitle: string; chapterTitle: string | null; translationTitle: null } | null; payload: Record<string, string> };
 
@@ -75,6 +76,18 @@ function parseSelection(sources: LocalStudyImportSource[], raw: LocalStudyImport
 }
 
 function invalidSelection(): never { throw new Error("INVALID_IMPORT_SELECTION"); }
+
+export function doSelectedSourceSnapshotsMatch(expected: readonly LocalStudyImportSourceSnapshot[], actual: readonly LocalStudyImportSourceSnapshot[], selectedOrigins: readonly LocalStudyImportSourceOrigin[]) {
+  if (!selectedOrigins.length || new Set(selectedOrigins).size !== selectedOrigins.length || selectedOrigins.some((origin) => !localStudyImportSourceOrigins.includes(origin))) return false;
+  return selectedOrigins.every((origin) => {
+    const expectedMatches = expected.filter((snapshot) => snapshot.origin === origin);
+    const actualMatches = actual.filter((snapshot) => snapshot.origin === origin);
+    if (expectedMatches.length !== 1 || actualMatches.length !== 1) return false;
+    const left = expectedMatches[0].rawValues;
+    const right = actualMatches[0].rawValues;
+    return left.length === 4 && right.length === 4 && left.every((value, index) => value === right[index]);
+  });
+}
 
 export function buildImportChunks(items: ClientImportItem[], uuid: () => string) {
   const chunks: Array<{ version: 1; manifestId: string; items: ClientImportItem[] }> = [];

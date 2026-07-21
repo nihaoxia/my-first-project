@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildImportChunks, buildLocalStudyImportManifest, IMPORT_CHUNK_BYTES, runImportChunks, shouldWriteImportMarker } from "../src/lib/cloud/import-client-core.ts";
+import { buildImportChunks, buildLocalStudyImportManifest, doSelectedSourceSnapshotsMatch, IMPORT_CHUNK_BYTES, runImportChunks, shouldWriteImportMarker } from "../src/lib/cloud/import-client-core.ts";
 
 const manifestId = "11111111-1111-4111-8111-111111111111";
 test("builds stable study records without cloud identity or storage data", async () => {
@@ -179,4 +179,22 @@ test("returns a content-free count preview for the selected import", async () =>
   assert.equal(prepared.preview.localErrors, 0);
   assert.equal(prepared.preview.sources[0].records, 2);
   assert.equal(JSON.stringify(prepared.preview).includes("secret"), false);
+});
+
+test("compares only selected fixed source snapshots before import", () => {
+  const expected = [
+    { origin: "current-supabase-scope", rawValues: ["v", "s", "n", "r"] },
+    { origin: "legacy-unscoped", rawValues: ["old-v", null, null, null] },
+  ] as const;
+
+  assert.equal(doSelectedSourceSnapshotsMatch(expected, expected, ["current-supabase-scope"]), true);
+  assert.equal(doSelectedSourceSnapshotsMatch(expected, [
+    expected[0],
+    { origin: "legacy-unscoped", rawValues: ["changed", null, null, null] },
+  ], ["current-supabase-scope"]), true);
+  assert.equal(doSelectedSourceSnapshotsMatch(expected, [
+    { origin: "current-supabase-scope", rawValues: ["v", "s", "changed", "r"] },
+    expected[1],
+  ], ["current-supabase-scope"]), false);
+  assert.equal(doSelectedSourceSnapshotsMatch(expected, [expected[0]], ["legacy-unscoped"]), false);
 });
