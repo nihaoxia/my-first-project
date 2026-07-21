@@ -62,6 +62,10 @@ test("documents encrypted same-account backup without claiming cloud sync", () =
     assert.match(document, /云端同步/u);
     assert.match(document, /跨账号迁移/u);
     assert.match(document, /选择性恢复|自动合并/u);
+    assert.match(document, /按分类.*整体替换|选择.*分类.*整体替换/u);
+    assert.match(document, /原书.*译本.*一组|原书与译本.*关联组/u);
+    assert.match(document, /自动合并.*未实现|仍未实现.*自动合并/u);
+    assert.doesNotMatch(document, /选择性恢复.*仍未实现/u);
     assert.doesNotMatch(document, /已完成云端自动备份|已支持跨账号恢复/u);
   }
 });
