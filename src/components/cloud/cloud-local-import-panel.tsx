@@ -74,8 +74,7 @@ type PreviewCandidate = {
 };
 type Phase = "idle" | "inspecting" | "previewing" | "importing";
 
-export function CloudLocalImportPanel(_props: { legacyMockUserId?: string } = {}) {
-  void _props;
+export function CloudLocalImportPanel() {
   const [inspection, setInspection] = useState<ImportInspection | null>(null);
   const [selectedOrigins, setSelectedOrigins] = useState<LocalStudyImportSourceOrigin[]>([]);
   const [selectedKinds, setSelectedKinds] = useState<LocalStudyImportKind[]>([

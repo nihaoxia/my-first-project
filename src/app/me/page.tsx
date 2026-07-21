@@ -1,9 +1,12 @@
 import { BookOpen, Clock, Library, WalletCards } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { LocalDataBackupPanel } from "@/components/account/local-data-backup-panel";
+import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-panel";
 import { Button } from "@/components/ui/button";
 import { MetricCard } from "@/components/ui/metric-card";
 import { StatusPill } from "@/components/ui/status-pill";
+import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
+import { getCloudServerConfig } from "@/lib/cloud/server-config";
 import { balanceRecords, myPageSummary, translationTasks } from "@/lib/mock-data";
 import { routes } from "@/lib/routes";
 
@@ -18,6 +21,7 @@ export default async function MePage({
 }: {
   searchParams?: Promise<{ authError?: string }>;
 }) {
+  const persistence = resolveCloudPersistenceMode(getCloudServerConfig());
   const params = await searchParams;
   const authError = params?.authError === "SIGN_OUT_FAILED"
     ? "退出登录失败，你仍处于登录状态。请稍后重试。"
@@ -116,6 +120,12 @@ export default async function MePage({
           </section>
         </aside>
       </div>
+
+      {persistence === "cloud" ? (
+        <section className="mt-8">
+          <CloudLocalImportPanel />
+        </section>
+      ) : null}
 
       <section className="mt-8">
         <LocalDataBackupPanel />

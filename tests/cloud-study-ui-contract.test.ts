@@ -107,3 +107,17 @@ test("completion markers do not permanently block future inspections", () => {
   assert.doesNotMatch(text, /existingMarker/);
   assert.doesNotMatch(text, /removeScopedLocalStorage|localStorage\.removeItem/);
 });
+
+test("mounts local-to-cloud migration only from the authenticated cloud account page", () => {
+  const mePage = source("src/app/me/page.tsx");
+  const notesPage = source("src/app/study/notes/page.tsx");
+  const panel = source("src/components/cloud/cloud-local-import-panel.tsx");
+
+  assert.match(mePage, /resolveCloudPersistenceMode\(getCloudServerConfig\(\)\)/);
+  assert.match(mePage, /persistence === "cloud"/);
+  assert.match(mePage, /<CloudLocalImportPanel\s*\/>/);
+  assert.match(mePage, /<AppShell requireAuth>/);
+  assert.doesNotMatch(mePage, /<CloudLocalImportPanel[^>]*(userId|legacyMockUserId)/);
+  assert.doesNotMatch(notesPage, /CloudLocalImportPanel/);
+  assert.match(panel, /export function CloudLocalImportPanel\(\)/);
+});

@@ -6,7 +6,6 @@ import { getAppSession } from "@/lib/auth/app-session";
 import { getCloudServerConfig } from "@/lib/cloud/server-config";
 import { resolveCloudPersistenceMode } from "@/lib/cloud/persistence-mode";
 import { getCloudStudyService } from "@/lib/cloud/study";
-import { CloudLocalImportPanel } from "@/components/cloud/cloud-local-import-panel";
 import { CloudStudyError, listAllStudyItemsForExport } from "@/lib/cloud/study-core";
 
 const noteItems: StudyNote[] = [
@@ -75,7 +74,6 @@ export default async function NotesPage() {
         exportLimitReached={exportLimitReached}
         persistence={persistence}
       />
-      {cloud && session ? <CloudLocalImportPanel legacyMockUserId={session.user.id} /> : null}
     </AppShell>
   );
 }
