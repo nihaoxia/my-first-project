@@ -166,6 +166,100 @@ test("rejects empty, duplicate, unknown, and non-array restore selections withou
   }
 });
 
+test("touches only selected restore groups in authoritative key order", () => {
+  const before = buildCurrentValues("selected");
+  const harness = createStorageHarness(before);
+
+  assert.deepEqual(
+    restoreLocalBackup({
+      ...restoreInput(harness.storage),
+      selectedGroups: ["notes", "library"],
+    }),
+    { ok: true },
+  );
+  assert.deepEqual(harness.events, [
+    `read:${actualKey("libraryBooks")}`,
+    `read:${actualKey("translations")}`,
+    `read:${actualKey("notes")}`,
+    `primary:write:${actualKey("libraryBooks")}`,
+    `primary:write:${actualKey("translations")}`,
+    `primary:write:${actualKey("notes")}`,
+  ]);
+  for (const dataKey of ["vocabulary", "sentences", "readerSelections"] as const) {
+    assert.equal(harness.values.get(actualKey(dataKey)), before.get(actualKey(dataKey)));
+    assert.equal(harness.events.some((event) => event.includes(actualKey(dataKey))), false);
+  }
+});
+
+test("removes an empty selected category without touching unselected categories", () => {
+  const payload = buildPayload();
+  payload.data.notes = [];
+  const before = buildCurrentValues("empty-selected");
+  const harness = createStorageHarness(before);
+
+  assert.deepEqual(
+    restoreLocalBackup({
+      ...restoreInput(harness.storage, payload),
+      selectedGroups: ["notes"],
+    }),
+    { ok: true },
+  );
+  assert.deepEqual(harness.events, [
+    `read:${actualKey("notes")}`,
+    `primary:remove:${actualKey("notes")}`,
+  ]);
+  assert.equal(harness.values.has(actualKey("notes")), false);
+});
+
+test("rolls back only attempted selected keys for every selected failure position", () => {
+  const selectedDataKeys = ["libraryBooks", "translations", "notes"] as const;
+
+  for (let failureIndex = 0; failureIndex < selectedDataKeys.length; failureIndex += 1) {
+    const before = buildCurrentValues(`selected-write-${failureIndex}`);
+    const harness = createStorageHarness(before, {
+      failPrimaryMutationAt: failureIndex,
+      mutateBeforePrimaryFailure: true,
+    });
+
+    assert.deepEqual(
+      restoreLocalBackup({
+        ...restoreInput(harness.storage),
+        selectedGroups: ["notes", "library"],
+      }),
+      { ok: false, code: "WRITE_FAILED", rollback: "complete" },
+    );
+    assert.deepEqual(harness.values, before);
+    assert.deepEqual(
+      harness.events.filter((event) => event.startsWith("rollback:")).map(eventKey),
+      selectedDataKeys
+        .slice(0, failureIndex + 1)
+        .reverse()
+        .map((dataKey) => actualKey(dataKey)),
+    );
+    assert.equal(harness.events.some((event) => event.includes(actualKey("vocabulary"))), false);
+  }
+});
+
+test("stops a selected restore before writes when one selected snapshot read fails", () => {
+  for (let failureIndex = 0; failureIndex < 3; failureIndex += 1) {
+    const before = buildCurrentValues(`selected-read-${failureIndex}`);
+    const harness = createStorageHarness(before, { failReadAt: failureIndex });
+
+    assert.deepEqual(
+      restoreLocalBackup({
+        ...restoreInput(harness.storage),
+        selectedGroups: ["library", "notes"],
+      }),
+      { ok: false, code: "READ_FAILED" },
+    );
+    assert.deepEqual(harness.values, before);
+    assert.equal(
+      harness.events.some((event) => /^(?:primary|rollback):/u.test(event)),
+      false,
+    );
+  }
+});
+
 function buildPayload() {
   const result = buildLocalBackupPayload(buildBackupRawValues());
   assert.equal(result.ok, true);

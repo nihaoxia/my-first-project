@@ -26,6 +26,15 @@ export const allLocalBackupRestoreGroups = [
   "readerSelections",
 ] as const satisfies readonly LocalBackupRestoreGroup[];
 
+const restoreGroupByDataKey: Record<LocalBackupDataKey, LocalBackupRestoreGroup> = {
+  libraryBooks: "library",
+  translations: "library",
+  vocabulary: "vocabulary",
+  sentences: "sentences",
+  notes: "notes",
+  readerSelections: "readerSelections",
+};
+
 export type LocalBackupRestoreResult =
   | { ok: true }
   | { ok: false; code: "SCOPE_MISMATCH" | "INVALID_SELECTION" | "READ_FAILED" }
@@ -50,11 +59,13 @@ export function restoreLocalBackup(input: {
   const selected = validateSelectedRestoreGroups(input.selectedGroups);
   if (!selected.ok) return selected;
 
-  const targets = localBackupStorageEntries.map((entry) => ({
-    ...entry,
-    key: buildScopedLocalStorageKey(entry.baseKey, input.currentScopeFingerprint),
-    value: serializeBackupCategory(entry.dataKey, input.payload),
-  }));
+  const targets = localBackupStorageEntries
+    .filter((entry) => selected.groups.has(restoreGroupByDataKey[entry.dataKey]))
+    .map((entry) => ({
+      ...entry,
+      key: buildScopedLocalStorageKey(entry.baseKey, input.currentScopeFingerprint),
+      value: serializeBackupCategory(entry.dataKey, input.payload),
+    }));
   const snapshots = new Map<string, string | null>();
 
   for (const { key } of targets) {
