@@ -43,7 +43,7 @@ test("keeps zero-write inspection separate from confirmed restore", () => {
   assert.match(panel, /decryptLocalBackup/u);
   assert.match(panel, /restoreLocalBackup/u);
   assert.match(panel, /candidate && confirmed/u);
-  assert.match(panel, /我了解恢复会替换当前账号的本地数据/u);
+  assert.match(panel, /我了解恢复会替换所选分类的当前本地数据/u);
   assert.match(panel, /setCandidate\(null\)/u);
   assert.match(panel, /setConfirmed\(false\)/u);
   assert.match(panel, /fileBytes\?\.fill\(0\)/u);
@@ -52,6 +52,38 @@ test("keeps zero-write inspection separate from confirmed restore", () => {
 test("clears the native file input after restore completion or cancellation", () => {
   assert.match(panel, /fileInputRef/u);
   assert.match(panel, /fileInputRef\.current\.value = ""/u);
+});
+
+test("defaults every restore group after inspection and passes the explicit selection", () => {
+  assert.match(panel, /allLocalBackupRestoreGroups/u);
+  assert.match(panel, /selectedRestoreGroups/u);
+  assert.match(panel, /setSelectedRestoreGroups\(\[\.\.\.allLocalBackupRestoreGroups\]\)/u);
+  assert.match(panel, /selectedGroups:\s*selectedRestoreGroups/u);
+});
+
+test("resets confirmation when restore groups change or the candidate is invalidated", () => {
+  assert.match(panel, /handleRestoreGroupChange/u);
+  assert.match(panel, /setConfirmed\(false\)/u);
+  assert.match(panel, /setSelectedRestoreGroups\(\[\]\)/u);
+});
+
+test("renders five accessible restore groups and blocks an empty selection", () => {
+  assert.match(panel, /<fieldset/u);
+  assert.match(panel, /<legend[^>]*>选择恢复内容<\/legend>/u);
+  assert.match(panel, /原书与译本/u);
+  assert.match(panel, /词汇/u);
+  assert.match(panel, /句子/u);
+  assert.match(panel, /笔记/u);
+  assert.match(panel, /阅读器收藏/u);
+  assert.match(panel, /aria-describedby=/u);
+  assert.match(panel, /请至少选择一类要恢复的数据/u);
+  assert.match(panel, /selectedRestoreGroups\.length === 0/u);
+  assert.match(panel, /我了解恢复会替换所选分类的当前本地数据/u);
+  assert.match(panel, /恢复所选数据/u);
+  assert.match(panel, /getRestoreGroupCountLabel/u);
+  assert.match(panel, /preview\.libraryBooks/u);
+  assert.match(panel, /preview\.translations/u);
+  assert.doesNotMatch(panel, /恢复会替换当前账号的本地数据/u);
 });
 
 test("renders accessible inline controls, statuses, and a content-free preview", () => {

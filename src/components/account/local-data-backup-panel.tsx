@@ -17,6 +17,7 @@ import {
   validateLocalBackupFileName,
   validateLocalBackupFileSize,
   type LocalBackupDataErrorCode,
+  type LocalBackupPreview,
   type LocalBackupRawValues,
   type ParsedLocalBackupEnvelope,
 } from "@/lib/backup/local-backup-core";
@@ -29,6 +30,7 @@ import {
 import {
   allLocalBackupRestoreGroups,
   restoreLocalBackup,
+  type LocalBackupRestoreGroup,
 } from "@/lib/backup/local-backup-restore";
 import {
   buildScopedLocalStorageKey,
@@ -51,13 +53,27 @@ export function LocalDataBackupPanel() {
   const [restorePassphrase, setRestorePassphrase] = useState("");
   const [inspecting, setInspecting] = useState(false);
   const [candidate, setCandidate] = useState<LocalBackupRestoreCandidate | null>(null);
+  const [selectedRestoreGroups, setSelectedRestoreGroups] = useState<LocalBackupRestoreGroup[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreNotice, setRestoreNotice] = useState<Notice | null>(null);
 
   function invalidateRestoreCandidate() {
     setCandidate(null);
+    setSelectedRestoreGroups([]);
     setConfirmed(false);
+  }
+
+  function handleRestoreGroupChange(group: LocalBackupRestoreGroup, checked: boolean) {
+    setSelectedRestoreGroups((current) =>
+      checked
+        ? allLocalBackupRestoreGroups.filter(
+            (candidateGroup) => candidateGroup === group || current.includes(candidateGroup),
+          )
+        : current.filter((candidateGroup) => candidateGroup !== group),
+    );
+    setConfirmed(false);
+    setRestoreNotice(null);
   }
 
   function clearSelectedFile() {
@@ -193,6 +209,7 @@ export function LocalDataBackupPanel() {
       }
 
       setCandidate(decrypted.candidate);
+      setSelectedRestoreGroups([...allLocalBackupRestoreGroups]);
       setRestoreNotice({
         message: "备份检查通过。确认下方数量无误后，可以选择恢复。",
         error: false,
@@ -210,7 +227,7 @@ export function LocalDataBackupPanel() {
   }
 
   function handleRestore() {
-    if (!(candidate && confirmed) || restoring) return;
+    if (!(candidate && confirmed) || selectedRestoreGroups.length === 0 || restoring) return;
 
     setRestoring(true);
     setRestoreNotice(null);
@@ -231,7 +248,7 @@ export function LocalDataBackupPanel() {
       const result = restoreLocalBackup({
         storage: storage.storage,
         payload: candidate.payload,
-        selectedGroups: allLocalBackupRestoreGroups,
+        selectedGroups: selectedRestoreGroups,
         sourceScopeFingerprint: candidate.sourceScopeFingerprint,
         inspectedScopeFingerprint: candidate.inspectedScopeFingerprint,
         currentScopeFingerprint: scope,
@@ -239,7 +256,7 @@ export function LocalDataBackupPanel() {
 
       if (result.ok) {
         setRestoreNotice({
-          message: "本地数据已恢复。请刷新页面，让所有工作区重新读取数据。",
+          message: "所选本地数据已恢复。请刷新页面，让相关工作区重新读取数据。",
           error: false,
         });
         return;
@@ -247,16 +264,18 @@ export function LocalDataBackupPanel() {
 
       if (result.code === "SCOPE_MISMATCH") {
         setRestoreNotice({ message: "此备份来自另一个账号，当前账号不能恢复。", error: true });
+      } else if (result.code === "INVALID_SELECTION") {
+        setRestoreNotice({ message: "恢复范围无效，未写入任何内容。", error: true });
       } else if (result.code === "READ_FAILED") {
         setRestoreNotice({ message: "无法读取当前账号的本地数据，未开始恢复。", error: true });
       } else if (result.code === "WRITE_FAILED" && result.rollback === "complete") {
         setRestoreNotice({
-          message: "恢复失败，原有本地数据已恢复，未完成替换。",
+          message: "恢复失败，所选分类的原有本地数据已恢复，未完成替换。",
           error: true,
         });
       } else {
         setRestoreNotice({
-          message: "恢复失败，且无法完整还原原有本地数据。请不要继续编辑，并保留备份文件。",
+          message: "恢复失败，且无法完整还原所选分类的原有本地数据。请不要继续编辑，并保留备份文件。",
           error: true,
         });
       }
@@ -290,7 +309,7 @@ export function LocalDataBackupPanel() {
             本地数据备份
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--muted-foreground)]">
-            备份只在当前浏览器中加密，不会上传。恢复会替换当前账号的本地数据。
+            备份只在当前浏览器中加密，不会上传。恢复会替换所选分类的当前本地数据。
           </p>
         </div>
       </div>
@@ -409,19 +428,66 @@ export function LocalDataBackupPanel() {
                 阅读器收藏包括 {candidate.preview.readerSelectionVocabulary} 项词汇和 {candidate.preview.readerSelectionSentences} 项句子。
               </p>
 
+              <fieldset className="mt-5 border-t border-[var(--border)] pt-5">
+                <legend className="font-semibold">选择恢复内容</legend>
+                <p
+                  id="local-restore-library-help"
+                  className="mt-2 text-xs leading-5 text-[var(--muted-foreground)]"
+                >
+                  原书和译本存在关联，会作为一组同时恢复。
+                </p>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {restoreGroupOptions.map((option) => (
+                    <label key={option.group} className="flex items-start gap-3 text-sm leading-6">
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4 accent-[var(--primary)]"
+                        checked={selectedRestoreGroups.includes(option.group)}
+                        disabled={restoring}
+                        aria-describedby={
+                          option.group === "library" ? "local-restore-library-help" : undefined
+                        }
+                        onChange={(event) =>
+                          handleRestoreGroupChange(option.group, event.target.checked)
+                        }
+                      />
+                      <span>
+                        <span>{option.label}</span>
+                        <span className="block text-xs text-[var(--muted-foreground)]">
+                          {getRestoreGroupCountLabel(option.group, candidate.preview)}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {selectedRestoreGroups.length === 0 ? (
+                <p className="mt-4 text-sm text-[var(--muted-foreground)]" role="status">
+                  请至少选择一类要恢复的数据。
+                </p>
+              ) : null}
+
               <label className="mt-5 flex items-start gap-3 text-sm leading-6">
                 <input
                   type="checkbox"
                   className="mt-1 size-4 accent-[var(--primary)]"
                   checked={confirmed}
+                  disabled={selectedRestoreGroups.length === 0 || restoring}
                   onChange={(event) => setConfirmed(event.target.checked)}
                 />
-                <span>我了解恢复会替换当前账号的本地数据</span>
+                <span>我了解恢复会替换所选分类的当前本地数据</span>
               </label>
               <div className="mt-4 flex flex-wrap gap-2">
-                <Button type="button" disabled={!(candidate && confirmed) || restoring} onClick={handleRestore}>
+                <Button
+                  type="button"
+                  disabled={
+                    !(candidate && confirmed) || selectedRestoreGroups.length === 0 || restoring
+                  }
+                  onClick={handleRestore}
+                >
                   <ShieldCheck aria-hidden="true" size={16} />
-                  {restoring ? "正在恢复" : "恢复并替换"}
+                  {restoring ? "正在恢复" : "恢复所选数据"}
                 </Button>
                 <Button type="button" variant="ghost" disabled={restoring} onClick={handleCancelRestore}>
                   取消
@@ -453,6 +519,24 @@ function PreviewCount({ label, value }: { label: string; value: number }) {
       <dd className="mt-0.5 font-semibold tabular-nums">{value}</dd>
     </div>
   );
+}
+
+function getRestoreGroupCountLabel(
+  group: LocalBackupRestoreGroup,
+  preview: LocalBackupPreview,
+) {
+  switch (group) {
+    case "library":
+      return `${preview.libraryBooks} 本原书，${preview.translations} 本译本`;
+    case "vocabulary":
+      return `${preview.vocabulary} 项`;
+    case "sentences":
+      return `${preview.sentences} 项`;
+    case "notes":
+      return `${preview.notes} 项`;
+    case "readerSelections":
+      return `${preview.readerSelections} 项`;
+  }
 }
 
 function readCurrentScopeFingerprint() {
@@ -579,3 +663,10 @@ const inputClasses =
   "mt-2 block h-10 w-full rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--foreground)] outline-none transition-colors file:h-7 focus:border-[var(--primary)] focus:outline-[3px] focus:outline-offset-1 focus:outline-[var(--primary)] disabled:opacity-50";
 const scopeUnavailableMessage = "当前登录状态无法确定本地数据归属，请重新登录后再试。";
 const storageUnavailableMessage = "浏览器已禁用或无法访问本地存储，无法创建备份。";
+const restoreGroupOptions = [
+  { group: "library", label: "原书与译本" },
+  { group: "vocabulary", label: "词汇" },
+  { group: "sentences", label: "句子" },
+  { group: "notes", label: "笔记" },
+  { group: "readerSelections", label: "阅读器收藏" },
+] as const satisfies ReadonlyArray<{ group: LocalBackupRestoreGroup; label: string }>;
