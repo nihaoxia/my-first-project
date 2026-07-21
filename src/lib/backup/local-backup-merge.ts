@@ -219,6 +219,9 @@ export function buildLocalBackupMergePlan(input: {
       return { ok: false, code: "BACKUP_DATA_MALFORMED" };
     }
     const merged = mergeNotes(current.records, backup.records);
+    if (!merged) {
+      return { ok: false, code: "MERGED_DATA_TOO_LARGE" };
+    }
     if (merged.added > 0 || merged.rekeyed > 0) {
       targetRawValues.notes = JSON.stringify(merged.records);
     }
@@ -370,16 +373,20 @@ function combineMergePreviews(
 
 function mergeNotes(current: StudyNote[], backup: StudyNote[]) {
   const usedIds = new Set([...current, ...backup].map((note) => note.id));
-  let nextNumber =
-    [...usedIds].reduce((highest, id) => {
-      const match = /^note-local-(\d+)$/u.exec(id);
-      return match ? Math.max(highest, Number(match[1])) : highest;
-    }, 0) + 1;
+  let highestNumber = "0";
+  for (const id of usedIds) {
+    const match = /^note-local-(\d+)$/u.exec(id);
+    if (!match) continue;
+    const candidate = normalizeDecimalInteger(match[1]);
+    if (compareDecimalIntegers(candidate, highestNumber) > 0) highestNumber = candidate;
+  }
+  let nextNumber = incrementDecimalInteger(highestNumber);
   const currentById = new Map(current.map((note) => [note.id, note]));
   const records = [...current];
   let added = 0;
   let existing = 0;
   let rekeyed = 0;
+  let generatedIdBytes = 0;
 
   for (const incoming of backup) {
     const present = currentById.get(incoming.id);
@@ -393,15 +400,42 @@ function mergeNotes(current: StudyNote[], backup: StudyNote[]) {
       existing += 1;
       continue;
     }
-    while (usedIds.has(`note-local-${nextNumber}`)) nextNumber += 1;
-    const rekeyedNote = { ...incoming, id: `note-local-${nextNumber}` };
+    while (usedIds.has(`note-local-${nextNumber}`)) {
+      nextNumber = incrementDecimalInteger(nextNumber);
+    }
+    const rekeyedId = `note-local-${nextNumber}`;
+    if (rekeyedId.length > localBackupPayloadByteLimit - generatedIdBytes) return null;
+    generatedIdBytes += rekeyedId.length;
+    const rekeyedNote = { ...incoming, id: rekeyedId };
     usedIds.add(rekeyedNote.id);
-    nextNumber += 1;
+    nextNumber = incrementDecimalInteger(nextNumber);
     records.push(rekeyedNote);
     rekeyed += 1;
   }
 
   return { records, added, existing, rekeyed };
+}
+
+function normalizeDecimalInteger(value: string) {
+  let firstNonZero = 0;
+  while (firstNonZero < value.length - 1 && value.charCodeAt(firstNonZero) === 48) {
+    firstNonZero += 1;
+  }
+  return firstNonZero === 0 ? value : value.slice(firstNonZero);
+}
+
+function compareDecimalIntegers(left: string, right: string) {
+  if (left.length !== right.length) return left.length > right.length ? 1 : -1;
+  if (left === right) return 0;
+  return left > right ? 1 : -1;
+}
+
+function incrementDecimalInteger(value: string) {
+  let carryIndex = value.length - 1;
+  while (carryIndex >= 0 && value.charCodeAt(carryIndex) === 57) carryIndex -= 1;
+  if (carryIndex < 0) return `1${"0".repeat(value.length)}`;
+  const nextDigit = String.fromCharCode(value.charCodeAt(carryIndex) + 1);
+  return `${value.slice(0, carryIndex)}${nextDigit}${"0".repeat(value.length - carryIndex - 1)}`;
 }
 
 function mergeReaderSelections(

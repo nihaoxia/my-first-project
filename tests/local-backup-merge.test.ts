@@ -208,6 +208,120 @@ test("rekeys different notes with colliding ids and keeps both records", () => {
   });
 });
 
+test("rekeys note conflicts above the safe-integer boundary without losing precision", () => {
+  const payload = backupPayload();
+  const collidingId = "note-local-9007199254740993";
+  payload.data.notes = [{ ...payload.data.notes[0], id: collidingId, content: "备份正文" }];
+  const current = [{ ...payload.data.notes[0], id: collidingId, content: "当前正文" }];
+
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { notes: JSON.stringify(current) },
+    payload,
+    selectedGroups: ["notes"],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(JSON.parse(result.targetRawValues.notes!)[1].id, "note-local-9007199254740994");
+});
+
+test("rekeys note conflicts after an arbitrarily long decimal suffix", () => {
+  const payload = backupPayload();
+  const suffix = "9".repeat(80);
+  const collidingId = `note-local-${suffix}`;
+  payload.data.notes = [{ ...payload.data.notes[0], id: collidingId, content: "备份正文" }];
+  const current = [{ ...payload.data.notes[0], id: collidingId, content: "当前正文" }];
+
+  const result = buildLocalBackupMergePlan({
+    currentRawValues: { notes: JSON.stringify(current) },
+    payload,
+    selectedGroups: ["notes"],
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(JSON.parse(result.targetRawValues.notes!)[1].id, `note-local-1${"0".repeat(80)}`);
+});
+
+test("increments long note suffixes without materializing an unbounded BigInt", () => {
+  const originalBigIntDescriptor = Object.getOwnPropertyDescriptor(globalThis, "BigInt");
+  assert.ok(originalBigIntDescriptor);
+  Object.defineProperty(globalThis, "BigInt", {
+    configurable: true,
+    value() {
+      throw new Error("unbounded BigInt conversion");
+    },
+  });
+
+  try {
+    const payload = backupPayload();
+    const collidingId = `note-local-${"8".repeat(80)}`;
+    payload.data.notes = [{ ...payload.data.notes[0], id: collidingId, content: "备份正文" }];
+    const current = [{ ...payload.data.notes[0], id: collidingId, content: "当前正文" }];
+    const result = buildLocalBackupMergePlan({
+      currentRawValues: { notes: JSON.stringify(current) },
+      payload,
+      selectedGroups: ["notes"],
+    });
+
+    assert.equal(result.ok, true);
+  } finally {
+    Object.defineProperty(globalThis, "BigInt", originalBigIntDescriptor);
+  }
+});
+
+test("rejects amplified rekey ids before storing more than the merge budget", () => {
+  const payload = backupPayload();
+  const longId = `note-local-${"8".repeat(1_000_000)}`;
+  const sharedLongNote = { ...payload.data.notes[0], id: longId, content: "相同正文" };
+  const backupConflicts = Array.from({ length: 20 }, (_, index) => ({
+    ...payload.data.notes[0],
+    id: `note-short-${index}`,
+    content: `备份正文 ${index}`,
+  }));
+  const currentConflicts = backupConflicts.map((note, index) => ({
+    ...note,
+    content: `当前正文 ${index}`,
+  }));
+  payload.data.notes = [sharedLongNote, ...backupConflicts];
+  const current = [sharedLongNote, ...currentConflicts];
+  const originalPushDescriptor = Object.getOwnPropertyDescriptor(Array.prototype, "push");
+  assert.ok(originalPushDescriptor);
+  const originalPush = Array.prototype.push;
+  let storedGeneratedIds = 0;
+
+  Object.defineProperty(Array.prototype, "push", {
+    ...originalPushDescriptor,
+    value(this: unknown[], ...items: unknown[]) {
+      for (const item of items) {
+        const id =
+          typeof item === "object" && item !== null && "id" in item
+            ? (item as { id?: unknown }).id
+            : undefined;
+        if (typeof id === "string" && id.length > 900_000 && id !== longId) {
+          storedGeneratedIds += 1;
+          if (storedGeneratedIds > 12) throw new Error("rekey amplification exceeded budget");
+        }
+      }
+      return Reflect.apply(originalPush, this, items);
+    },
+  });
+
+  try {
+    assert.deepEqual(
+      buildLocalBackupMergePlan({
+        currentRawValues: { notes: JSON.stringify(current) },
+        payload,
+        selectedGroups: ["notes"],
+      }),
+      { ok: false, code: "MERGED_DATA_TOO_LARGE" },
+    );
+    assert.equal(storedGeneratedIds, 12);
+  } finally {
+    Object.defineProperty(Array.prototype, "push", originalPushDescriptor);
+  }
+});
+
 test("deduplicates an identical note without writing", () => {
   const payload = backupPayload();
   const note = payload.data.notes[0];
