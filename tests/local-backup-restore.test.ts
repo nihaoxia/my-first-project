@@ -7,6 +7,7 @@ import {
 } from "../src/lib/backup/local-backup-core.ts";
 import {
   allLocalBackupRestoreGroups,
+  inspectLocalBackupMerge,
   restoreLocalBackup,
 } from "../src/lib/backup/local-backup-restore.ts";
 import { buildScopedLocalStorageKey } from "../src/lib/storage/local-storage-scope.ts";
@@ -260,6 +261,236 @@ test("stops a selected restore before writes when one selected snapshot read fai
   }
 });
 
+test("inspects only selected merge keys without writing", () => {
+  const harness = createStorageHarness(buildMergeCurrentValues());
+  const result = inspectLocalBackupMerge({
+    storage: harness.storage,
+    payload: buildPayload(),
+    selectedGroups: ["notes", "library"],
+    sourceScopeFingerprint: scope,
+    inspectedScopeFingerprint: scope,
+    currentScopeFingerprint: scope,
+  });
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(harness.events, [
+    `read:${actualKey("libraryBooks")}`,
+    `read:${actualKey("translations")}`,
+    `read:${actualKey("notes")}`,
+  ]);
+  assert.deepEqual(Object.keys(result.inspection.currentRawValues), [
+    "libraryBooks",
+    "translations",
+    "notes",
+  ]);
+  assert.equal(harness.events.some((event) => /^(?:primary|rollback):/u.test(event)), false);
+});
+
+test("validates merge scope and selection before storage access", () => {
+  for (const input of [
+    { selectedGroups: [] as string[], currentScopeFingerprint: scope },
+    { selectedGroups: ["unknown"], currentScopeFingerprint: scope },
+    { selectedGroups: [] as string[], currentScopeFingerprint: "changed" },
+  ]) {
+    const harness = createStorageHarness(buildMergeCurrentValues());
+    const result = inspectLocalBackupMerge({
+      storage: harness.storage,
+      payload: buildPayload(),
+      sourceScopeFingerprint: scope,
+      inspectedScopeFingerprint: scope,
+      selectedGroups: input.selectedGroups as unknown as typeof allLocalBackupRestoreGroups,
+      currentScopeFingerprint: input.currentScopeFingerprint,
+    });
+    assert.deepEqual(
+      result,
+      input.currentScopeFingerprint === "changed"
+        ? { ok: false, code: "SCOPE_MISMATCH" }
+        : { ok: false, code: "INVALID_SELECTION" },
+    );
+    assert.deepEqual(harness.events, []);
+  }
+});
+
+test("rejects invalid restore modes and merge inspections before storage access", () => {
+  const invalidInputs: unknown[] = [
+    { mode: "unknown" },
+    { mode: "merge", mergeInspection: null },
+    {
+      mode: "merge",
+      mergeInspection: {
+        selectedGroups: ["notes"],
+        inspectedScopeFingerprint: scope,
+        currentRawValues: {},
+        preview: {},
+        changedDataKeys: [],
+        targetRawValues: {},
+      },
+    },
+  ];
+
+  for (const invalid of invalidInputs) {
+    const harness = createStorageHarness(buildMergeCurrentValues());
+    const result = restoreLocalBackup({
+      ...restoreInput(harness.storage),
+      selectedGroups: ["notes"],
+      ...(invalid as object),
+    } as Parameters<typeof restoreLocalBackup>[0]);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.match(result.code, /INVALID_MODE|INVALID_MERGE_INSPECTION/u);
+    }
+    assert.deepEqual(harness.events, []);
+  }
+});
+
+test("rejects a changed selected snapshot before writes", () => {
+  const payload = buildPayload();
+  const harness = createStorageHarness(buildMergeCurrentValues());
+  const inspected = inspectLocalBackupMerge({
+    storage: harness.storage,
+    payload,
+    selectedGroups: ["notes"],
+    sourceScopeFingerprint: scope,
+    inspectedScopeFingerprint: scope,
+    currentScopeFingerprint: scope,
+  });
+  assert.equal(inspected.ok, true);
+  if (!inspected.ok) return;
+  harness.values.set(actualKey("notes"), JSON.stringify(payload.data.notes));
+  harness.events.length = 0;
+
+  assert.deepEqual(
+    restoreLocalBackup({
+      ...restoreInput(harness.storage, payload),
+      mode: "merge",
+      selectedGroups: ["notes"],
+      mergeInspection: inspected.inspection,
+    }),
+    { ok: false, code: "CURRENT_DATA_CHANGED" },
+  );
+  assert.equal(harness.events.some((event) => /^(?:primary|rollback):/u.test(event)), false);
+});
+
+test("writes only changed merge keys in authoritative order", () => {
+  const payload = buildPayload();
+  const before = buildMergeCurrentValues();
+  before.set(actualKey("libraryBooks"), JSON.stringify(payload.data.libraryBooks));
+  before.set(actualKey("translations"), JSON.stringify(payload.data.translations));
+  const harness = createStorageHarness(before);
+  const inspected = inspectLocalBackupMerge({
+    storage: harness.storage,
+    payload,
+    selectedGroups: ["notes", "library"],
+    sourceScopeFingerprint: scope,
+    inspectedScopeFingerprint: scope,
+    currentScopeFingerprint: scope,
+  });
+  assert.equal(inspected.ok, true);
+  if (!inspected.ok) return;
+  assert.deepEqual(inspected.inspection.changedDataKeys, ["notes"]);
+  harness.events.length = 0;
+
+  assert.deepEqual(
+    restoreLocalBackup({
+      ...restoreInput(harness.storage, payload),
+      mode: "merge",
+      selectedGroups: ["notes", "library"],
+      mergeInspection: inspected.inspection,
+    }),
+    { ok: true },
+  );
+  assert.deepEqual(harness.events.filter((event) => event.startsWith("primary:")), [
+    `primary:write:${actualKey("notes")}`,
+  ]);
+  assert.equal(
+    harness.events.some((event) => event.includes(actualKey("vocabulary"))),
+    false,
+  );
+});
+
+test("rolls back every attempted changed merge key in reverse order", () => {
+  const changedDataKeys = ["libraryBooks", "translations", "notes"] as const;
+
+  for (let failureIndex = 0; failureIndex < changedDataKeys.length; failureIndex += 1) {
+    const before = buildMergeCurrentValues();
+    const harness = createStorageHarness(before, {
+      failPrimaryMutationAt: failureIndex,
+      mutateBeforePrimaryFailure: true,
+    });
+    const payload = buildPayload();
+    const inspected = inspectLocalBackupMerge({
+      storage: harness.storage,
+      payload,
+      selectedGroups: ["notes", "library"],
+      sourceScopeFingerprint: scope,
+      inspectedScopeFingerprint: scope,
+      currentScopeFingerprint: scope,
+    });
+    assert.equal(inspected.ok, true);
+    if (!inspected.ok) continue;
+    assert.deepEqual(inspected.inspection.changedDataKeys, changedDataKeys);
+    harness.events.length = 0;
+
+    assert.deepEqual(
+      restoreLocalBackup({
+        ...restoreInput(harness.storage, payload),
+        mode: "merge",
+        selectedGroups: ["notes", "library"],
+        mergeInspection: inspected.inspection,
+      }),
+      { ok: false, code: "WRITE_FAILED", rollback: "complete" },
+    );
+    assert.deepEqual(harness.values, before);
+    assert.deepEqual(
+      harness.events.filter((event) => event.startsWith("rollback:")).map(eventKey),
+      changedDataKeys
+        .slice(0, failureIndex + 1)
+        .reverse()
+        .map((dataKey) => actualKey(dataKey)),
+    );
+    assert.equal(
+      harness.events.some((event) => event.includes(actualKey("vocabulary"))),
+      false,
+    );
+  }
+});
+
+test("continues changed-key rollback after one merge rollback fails", () => {
+  const before = buildMergeCurrentValues();
+  const harness = createStorageHarness(before, {
+    failPrimaryMutationAt: 2,
+    mutateBeforePrimaryFailure: true,
+    failRollbackKey: actualKey("translations"),
+  });
+  const payload = buildPayload();
+  const inspected = inspectLocalBackupMerge({
+    storage: harness.storage,
+    payload,
+    selectedGroups: ["library", "notes"],
+    sourceScopeFingerprint: scope,
+    inspectedScopeFingerprint: scope,
+    currentScopeFingerprint: scope,
+  });
+  assert.equal(inspected.ok, true);
+  if (!inspected.ok) return;
+  harness.events.length = 0;
+
+  assert.deepEqual(
+    restoreLocalBackup({
+      ...restoreInput(harness.storage, payload),
+      mode: "merge",
+      selectedGroups: ["library", "notes"],
+      mergeInspection: inspected.inspection,
+    }),
+    { ok: false, code: "WRITE_FAILED", rollback: "failed" },
+  );
+  assert.deepEqual(
+    harness.events.filter((event) => event.startsWith("rollback:")).map(eventKey),
+    [actualKey("notes"), actualKey("translations"), actualKey("libraryBooks")],
+  );
+});
+
 function buildPayload() {
   const result = buildLocalBackupPayload(buildBackupRawValues());
   assert.equal(result.ok, true);
@@ -269,6 +500,7 @@ function buildPayload() {
 
 function restoreInput(storage: LocalStorageAdapter, payload = buildPayload()) {
   return {
+    mode: "replace" as const,
     storage,
     payload,
     selectedGroups: allLocalBackupRestoreGroups,
@@ -276,6 +508,22 @@ function restoreInput(storage: LocalStorageAdapter, payload = buildPayload()) {
     inspectedScopeFingerprint: scope,
     currentScopeFingerprint: scope,
   };
+}
+
+function buildMergeCurrentValues() {
+  const rawValues = {
+    libraryBooks: "[]",
+    translations: "[]",
+    vocabulary: "[]",
+    sentences: "[]",
+    notes: "[]",
+    readerSelections: JSON.stringify({ vocabularyTexts: [], sentenceTexts: [] }),
+  } as const;
+  return new Map(
+    localBackupStorageEntries.map(
+      ({ dataKey }) => [actualKey(dataKey), rawValues[dataKey]] as const,
+    ),
+  );
 }
 
 function actualKeys() {

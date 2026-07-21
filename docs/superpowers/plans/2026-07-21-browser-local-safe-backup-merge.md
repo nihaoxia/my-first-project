@@ -662,6 +662,7 @@ git commit -m "feat: merge notes and reader selections safely (task 2/5)"
 
 - 修改：`tests/local-backup-restore.test.ts`
 - 修改：`src/lib/backup/local-backup-restore.ts`
+- 修改：`src/components/account/local-data-backup-panel.tsx`（只迁移现有调用为显式替换模式）
 
 - [ ] **步骤 1：迁移既有恢复测试为显式替换模式**
 
@@ -999,6 +1000,14 @@ type LocalBackupRestoreInput = CommonRestoreInput &
 
 - [ ] **步骤 10：运行备份事务回归**
 
+在运行类型检查前，给页面现有 `restoreLocalBackup()` 调用临时增加：
+
+```ts
+mode: "replace",
+```
+
+这只是必填判别字段的编译迁移，不增加页面恢复方式状态。任务 4 的红灯会要求把它替换为 `restoreMode` 和 `mergeInspection`。
+
 ```powershell
 node --experimental-strip-types --test tests/local-backup-core.test.ts tests/local-backup-crypto.test.ts tests/local-backup-merge.test.ts tests/local-backup-restore.test.ts
 pnpm typecheck
@@ -1010,7 +1019,7 @@ git diff --check
 - [ ] **步骤 11：提交任务 3**
 
 ```powershell
-git add src/lib/backup/local-backup-restore.ts tests/local-backup-restore.test.ts
+git add docs/superpowers/plans/2026-07-21-browser-local-safe-backup-merge.md src/lib/backup/local-backup-restore.ts tests/local-backup-restore.test.ts src/components/account/local-data-backup-panel.tsx
 git commit -m "feat: preview and execute safe local merges (task 3/5)"
 ```
 

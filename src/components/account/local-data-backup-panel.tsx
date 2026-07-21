@@ -246,6 +246,7 @@ export function LocalDataBackupPanel() {
       }
 
       const result = restoreLocalBackup({
+        mode: "replace",
         storage: storage.storage,
         payload: candidate.payload,
         selectedGroups: selectedRestoreGroups,
