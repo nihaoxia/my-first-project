@@ -9,6 +9,7 @@ export const localPrototypeCapabilities = {
   browserLocalEncryptedBackup: true,
   browserLocalSelectiveRestore: true,
   browserLocalSafeBackupMerge: true,
+  sameAccountManualStudyImport: true,
   mcpTranslationIntegration: true,
   realBilling: false,
   automaticQualityReview: false,
@@ -25,5 +26,5 @@ export const homePrototypeCopy = {
   translationWorkflowDescription:
     "选择目标语言，通过已配置的 MCP 服务逐章生成真实译文；完成一章立即保存。",
   summary:
-    "当前原型支持 TXT 与 EPUB 本地拆章、MCP 逐章翻译、章节阅读与学习收藏、浏览器本地语音朗读、浏览器本地加密备份、安全合并与按分类同账号恢复，以及浏览器本地 TXT 与标准 EPUB 3 下载。本地语音只使用当前设备的系统本地声音，不上传正文或生成音频文件。真实翻译需要配置 MCP 与 OpenAI 兼容模型服务；EPUB 封面、图片、字体、固定布局、DRM、云端导出文件保存，以及真实计费、自动质检和生产导出管线仍未启用。",
+    "当前原型支持 TXT 与 EPUB 本地拆章、MCP 逐章翻译、章节阅读与学习收藏、浏览器本地语音朗读、浏览器本地加密备份、安全合并与按分类同账号恢复、同账号手动导入本地词汇、句子和笔记，以及浏览器本地 TXT 与标准 EPUB 3 下载。本地语音只使用当前设备的系统本地声音，不上传正文或生成音频文件。手动学习数据导入不是完整同步或自动同步，不包含原书和译本迁移。真实翻译需要配置 MCP 与 OpenAI 兼容模型服务；EPUB 封面、图片、字体、固定布局、DRM、云端导出文件保存，以及真实计费、自动质检和生产导出管线仍未启用。",
 } as const;
