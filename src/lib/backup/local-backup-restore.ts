@@ -10,30 +10,15 @@ import {
   type LocalBackupDataKey,
   type LocalBackupPayloadV1,
 } from "./local-backup-core.ts";
+import {
+  resolveLocalBackupRestoreSelection,
+  type LocalBackupRestoreGroup,
+} from "./local-backup-merge.ts";
 
-export type LocalBackupRestoreGroup =
-  | "library"
-  | "vocabulary"
-  | "sentences"
-  | "notes"
-  | "readerSelections";
-
-export const allLocalBackupRestoreGroups = [
-  "library",
-  "vocabulary",
-  "sentences",
-  "notes",
-  "readerSelections",
-] as const satisfies readonly LocalBackupRestoreGroup[];
-
-const restoreGroupByDataKey: Record<LocalBackupDataKey, LocalBackupRestoreGroup> = {
-  libraryBooks: "library",
-  translations: "library",
-  vocabulary: "vocabulary",
-  sentences: "sentences",
-  notes: "notes",
-  readerSelections: "readerSelections",
-};
+export {
+  allLocalBackupRestoreGroups,
+  type LocalBackupRestoreGroup,
+} from "./local-backup-merge.ts";
 
 export type LocalBackupRestoreResult =
   | { ok: true }
@@ -56,11 +41,11 @@ export function restoreLocalBackup(input: {
     return { ok: false, code: "SCOPE_MISMATCH" };
   }
 
-  const selected = validateSelectedRestoreGroups(input.selectedGroups);
+  const selected = resolveLocalBackupRestoreSelection(input.selectedGroups);
   if (!selected.ok) return selected;
 
   const targets = localBackupStorageEntries
-    .filter((entry) => selected.groups.has(restoreGroupByDataKey[entry.dataKey]))
+    .filter((entry) => selected.dataKeys.includes(entry.dataKey))
     .map((entry) => ({
       ...entry,
       key: buildScopedLocalStorageKey(entry.baseKey, input.currentScopeFingerprint),
@@ -89,28 +74,6 @@ export function restoreLocalBackup(input: {
   }
 
   return { ok: true };
-}
-
-function validateSelectedRestoreGroups(
-  value: unknown,
-):
-  | { ok: true; groups: ReadonlySet<LocalBackupRestoreGroup> }
-  | { ok: false; code: "INVALID_SELECTION" } {
-  if (!Array.isArray(value) || value.length === 0) {
-    return { ok: false, code: "INVALID_SELECTION" };
-  }
-
-  const allowed = new Set<string>(allLocalBackupRestoreGroups);
-  const groups = new Set<LocalBackupRestoreGroup>();
-  for (const candidate of value) {
-    const group = candidate as LocalBackupRestoreGroup;
-    if (typeof candidate !== "string" || !allowed.has(candidate) || groups.has(group)) {
-      return { ok: false, code: "INVALID_SELECTION" };
-    }
-    groups.add(group);
-  }
-
-  return { ok: true, groups };
 }
 
 function serializeBackupCategory(
